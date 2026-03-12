@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from './supabaseClient';
 import { Capacitor } from '@capacitor/core';
+import { Browser } from '@capacitor/browser';
+
 // ── Mini Starfield — green/black ───────────────────────────────
 function LoginStars() {
   const canvasRef = useRef(null);
@@ -152,17 +154,22 @@ export default function LoginPage() {
       // Determine correct redirect URL based on platform
       const isNative = Capacitor.isNativePlatform();
       const redirectUrl = isNative 
-        ? 'com.vicky.orbitmusic://login-callback/' 
+        ? 'com.vicky.orbitmusic://login-callback' 
         : window.location.origin;
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { 
           redirectTo: redirectUrl,
-          scopes: 'https://www.googleapis.com/auth/youtube.readonly'
+          scopes: 'https://www.googleapis.com/auth/youtube.readonly',
+          skipBrowserRedirect: isNative
         },
       });
       if (error) throw error;
+      
+      if (isNative && data?.url) {
+        await Browser.open({ url: data.url });
+      }
     } catch (err) {
       setError(err.message || 'Google sign-in failed.');
       setGLoading(false);

@@ -13,6 +13,9 @@ import SettingsModal from './SettingsModal';
 import ExpandedPlayer from './ExpandedPlayer';
 import LoginPage from './LoginPage';
 import { TrackCard } from './HomeView';
+import { App as CapApp } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 
 // ── Loading spinner ─────────────────────────────────────────────
 function LoadingScreen() {
@@ -124,6 +127,30 @@ function AppShell() {
 // ── Root — auth-guarded ─────────────────────────────────────────
 export default function App() {
   const { user, loading } = useAuth();
+
+  React.useEffect(() => {
+    const listener = CapApp.addListener('appUrlOpen', async (event) => {
+      try {
+        const url = new URL(event.url);
+        if (url.hostname === 'login-callback') {
+          // Tell Capacitor Browser to close (the system browser we used to log in)
+          if (Capacitor.isNativePlatform()) {
+            await Browser.close().catch(() => {});
+          }
+          
+          // Force the webview to navigate safely to the same origin but with the new hash/search params
+          // This forces a full reload, letting Supabase natively intercept and handle the OAuth token
+          const params = url.search + url.hash;
+          if (params) {
+            window.location.href = window.location.origin + url.pathname + params;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse app URL', e);
+      }
+    });
+    return () => { listener.then(l => l.remove()); };
+  }, []);
 
   if (loading) return <LoadingScreen />;
   if (!user)   return <LoginPage />;
