@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from './supabaseClient';
-
+import { Capacitor } from '@capacitor/core';
 // ── Mini Starfield — green/black ───────────────────────────────
 function LoginStars() {
   const canvasRef = useRef(null);
@@ -149,10 +149,16 @@ export default function LoginPage() {
   async function handleGoogle() {
     setGLoading(true); setError('');
     try {
+      // Determine correct redirect URL based on platform
+      const isNative = Capacitor.isNativePlatform();
+      const redirectUrl = isNative 
+        ? 'com.vicky.orbitmusic://login-callback/' 
+        : window.location.origin;
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { 
-          redirectTo: window.location.origin,
+          redirectTo: redirectUrl,
           scopes: 'https://www.googleapis.com/auth/youtube.readonly'
         },
       });
