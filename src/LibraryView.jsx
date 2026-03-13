@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePlayer } from './PlayerContext';
 import { TrackCard } from './HomeView';
 
@@ -30,7 +30,8 @@ function TrackRow({ track, playlist, onRemove }) {
 
 export default function LibraryView() {
   const {
-    playlists, likedSongs,
+    playlists, likedSongs, ytPlaylists, fetchingYtPlaylists,
+    fetchYouTubePlaylists, fetchYouTubePlaylistTracks,
     activePlaylist, setActivePlaylist,
     removeTrackFromPlaylist,
     deletePlaylist,
@@ -39,10 +40,19 @@ export default function LibraryView() {
     history,
   } = usePlayer();
 
-  const [tab, setTab] = useState('playlists'); // 'playlists' | 'liked' | 'history'
+  const [tab, setTab] = useState('playlists'); // 'playlists' | 'liked' | 'history' | 'youtube'
 
   // Find active playlist
-  const openPl = activePlaylist ? playlists.find(p => p.id === activePlaylist) : null;
+  const openPl = activePlaylist 
+    ? playlists.find(p => p.id === activePlaylist) || ytPlaylists.find(p => p.id === activePlaylist)
+    : null;
+
+  // Fetch tracks for YouTube playlist if needed
+  useEffect(() => {
+    if (openPl && openPl.id.startsWith('yt-') && openPl.tracks === null) {
+      fetchYouTubePlaylistTracks(openPl.ytId);
+    }
+  }, [openPl, fetchYouTubePlaylistTracks]);
 
   // If a playlist is open, show it
   if (openPl) {
@@ -53,16 +63,23 @@ export default function LibraryView() {
             ← Back
           </button>
           <div className="font-display" style={{ fontSize: '1.3rem', fontWeight: 800, letterSpacing: '0.06em' }}>
-            🎵 {openPl.name}
+            {openPl.id.startsWith('yt-') ? '▶️' : '🎵'} {openPl.name}
           </div>
-          <span className="badge badge-ion">{openPl.tracks.length} tracks</span>
-          <button className="btn btn-ghost ml-auto" style={{ fontSize: '0.75rem', color: 'var(--stellar)' }}
-            onClick={() => { deletePlaylist(openPl.id); setActivePlaylist(null); }}>
-            🗑 Delete
-          </button>
+          <span className="badge badge-ion">{openPl.tracks ? openPl.tracks.length : '...'} tracks</span>
+          {!openPl.id.startsWith('yt-') && (
+            <button className="btn btn-ghost ml-auto" style={{ fontSize: '0.75rem', color: 'var(--stellar)' }}
+              onClick={() => { deletePlaylist(openPl.id); setActivePlaylist(null); }}>
+              🗑 Delete
+            </button>
+          )}
         </div>
 
-        {openPl.tracks.length === 0 ? (
+        {!openPl.tracks ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">▶️</div>
+            <div className="empty-state-title">Loading tracks...</div>
+          </div>
+        ) : openPl.tracks.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">🎵</div>
             <div className="empty-state-title">Playlist is empty</div>
@@ -81,7 +98,7 @@ export default function LibraryView() {
                 key={track.videoId}
                 track={track}
                 playlist={openPl.tracks}
-                onRemove={(vid) => removeTrackFromPlaylist(openPl.id, vid)}
+                onRemove={openPl.id.startsWith('yt-') ? null : (vid) => removeTrackFromPlaylist(openPl.id, vid)}
               />
             ))}
           </>
@@ -100,8 +117,8 @@ export default function LibraryView() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-2 mb-6">
-        {[['playlists', '🎵 Playlists'], ['liked', '💜 Liked'], ['history', '🕐 History']].map(([key, label]) => (
+      <div className="flex gap-2 mb-6" style={{ overflowX: 'auto', paddingBottom: 4 }}>
+        {[['playlists', '🎵 Playlists'], ['liked', '💜 Liked'], ['history', '🕐 History'], ['youtube', '▶️ YouTube']].map(([key, label]) => (
           <button
             key={key}
             id={`lib-tab-${key}`}
@@ -210,6 +227,49 @@ export default function LibraryView() {
                 <TrackRow key={track.videoId} track={track} playlist={history} />
               ))}
             </>
+          )}
+        </>
+      )}
+
+      {/* YouTube Playlists tab */}
+      {tab === 'youtube' && (
+        <>
+          <div style={{ marginBottom: 16 }}>
+            <button className="btn btn-ghost" onClick={fetchYouTubePlaylists} style={{ fontSize: '0.82rem' }}>
+              🔄 Refresh Playlists
+            </button>
+          </div>
+          {fetchingYtPlaylists ? (
+            <div className="empty-state"><div className="empty-state-title">Fetching playlists...</div></div>
+          ) : ytPlaylists.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">▶️</div>
+              <div className="empty-state-title">No YouTube Playlists</div>
+              <div className="empty-state-desc">Click Refresh to fetch playlists from your YouTube account</div>
+            </div>
+          ) : (
+            <div className="grid-auto">
+              {ytPlaylists.map(pl => (
+                <div
+                  key={pl.id}
+                  className="glass-card"
+                  style={{ padding: 16, cursor: 'pointer' }}
+                  onClick={() => setActivePlaylist(pl.id)}
+                >
+                  <div style={{
+                    width: '100%', aspectRatio: '1', borderRadius: 8, marginBottom: 12,
+                    background: `linear-gradient(135deg, var(--plasma-dim), var(--ion-dim))`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem'
+                  }}>
+                    {pl.thumbnail
+                      ? <img src={pl.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+                      : '▶️'}
+                  </div>
+                  <div className="font-display truncate" style={{ fontSize: '0.82rem', fontWeight: 700, marginBottom: 4 }}>{pl.name}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{pl.trackCount} tracks</div>
+                </div>
+              ))}
+            </div>
           )}
         </>
       )}

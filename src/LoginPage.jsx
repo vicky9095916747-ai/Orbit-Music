@@ -165,12 +165,21 @@ export default function LoginPage() {
           skipBrowserRedirect: isNative
         },
       });
-      if (error) throw error;
       
-      if (isNative && data?.url) {
+      if (error) {
+        alert("Supabase Auth Error: " + error.message);
+        throw error;
+      }
+      
+      if (isNative) {
+        if (!data?.url) {
+          alert("Error: Supabase did not return a URL. Data: " + JSON.stringify(data));
+          throw new Error("Missing OAuth URL");
+        }
         await Browser.open({ url: data.url });
       }
     } catch (err) {
+      alert("Sign in failed: " + (err.message || 'Unknown error'));
       setError(err.message || 'Google sign-in failed.');
       setGLoading(false);
     }

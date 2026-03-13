@@ -52,6 +52,10 @@ export function PlayerProvider({ children }) {
     catch { return []; }
   });
 
+  // ─── YouTube Playlists ─────────────────────────────────
+  const [ytPlaylists, setYtPlaylists] = useState([]);
+  const [fetchingYtPlaylists, setFetchingYtPlaylists] = useState(false);
+
   // ─── UI state ──────────────────────────────────────────
   const [activeView, setActiveView] = useState('home');
   const [showSettings, setShowSettings] = useState(false);
@@ -356,6 +360,76 @@ export function PlayerProvider({ children }) {
     }));
   }, []);
 
+  // ─── YouTube Playlists ────────────────────────────────
+
+  const fetchYouTubePlaylists = useCallback(async () => {
+    const token = session?.provider_token;
+    if (!token) return;
+    setFetchingYtPlaylists(true);
+    try {
+      const res = await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50', {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+      });
+      if (!res.ok) throw new Error('Failed to fetch playlists');
+      const data = await res.json();
+      const pls = (data.items || []).map(item => ({
+        id: `yt-${item.id}`,
+        ytId: item.id,
+        name: item.snippet.title,
+        thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || item.snippet.thumbnails?.standard?.url,
+        trackCount: item.contentDetails?.itemCount || 0,
+        tracks: null // null means not fetched
+      }));
+      setYtPlaylists(pls);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setFetchingYtPlaylists(false);
+    }
+  }, [session]);
+
+  const fetchYouTubePlaylistTracks = useCallback(async (playlistId) => {
+    const token = session?.provider_token;
+    if (!token) return [];
+    try {
+      let pageToken = '';
+      let allTracks = [];
+      do {
+        const params = new URLSearchParams({
+          part: 'snippet',
+          playlistId: playlistId,
+          maxResults: '50',
+          ...(pageToken ? { pageToken } : {})
+        });
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params}`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+        });
+        if (!res.ok) break;
+        const data = await res.json();
+        const tracks = (data.items || [])
+          .filter(item => item.snippet.title !== 'Private video' && item.snippet.title !== 'Deleted video')
+          .map(item => ({
+            id: item.snippet.resourceId.videoId,
+            videoId: item.snippet.resourceId.videoId,
+            title: item.snippet.title,
+            artist: item.snippet.videoOwnerChannelTitle || 'YouTube',
+            thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || item.snippet.thumbnails?.standard?.url,
+            addedAt: Date.now()
+          }));
+        allTracks = [...allTracks, ...tracks];
+        pageToken = data.nextPageToken;
+      } while (pageToken && allTracks.length < 200);
+      
+      setYtPlaylists(prev => prev.map(p => 
+        p.ytId === playlistId ? { ...p, tracks: allTracks } : p
+      ));
+      return allTracks;
+    } catch (err) {
+      console.error(err);
+      return [];
+    }
+  }, [session]);
+
   // ─── YouTube Search ───────────────────────────────────
 
   const searchYouTube = useCallback(async (query, categoryId = '10') => {
@@ -469,7 +543,7 @@ export function PlayerProvider({ children }) {
         currentTime, duration, volume, muted,
         queue, queueIndex, history,
         shuffle, repeat,
-        playlists, likedSongs,
+        playlists, likedSongs, ytPlaylists, fetchingYtPlaylists,
         activeView, showSettings, sidebarCollapsed, rightPanelOpen,
         expandedPlayer, activePlaylist,
         searchQuery, searchResults, searching, searchError,
@@ -486,6 +560,7 @@ export function PlayerProvider({ children }) {
         addToQueue, addToQueueNext, removeFromQueue, playFromQueue, shuffleQueue,
         toggleLike, isLiked,
         createPlaylist, deletePlaylist, addTrackToPlaylist, removeTrackFromPlaylist,
+        fetchYouTubePlaylists, fetchYouTubePlaylistTracks,
         searchYouTube
       }}
     >
