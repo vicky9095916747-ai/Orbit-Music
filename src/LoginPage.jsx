@@ -153,9 +153,17 @@ export default function LoginPage() {
     try {
       // Determine correct redirect URL based on platform
       const isNative = Capacitor.isNativePlatform();
-      const redirectUrl = isNative 
-        ? 'com.vicky.orbitmusic://login-callback' 
-        : window.location.origin;
+      
+      let redirectUrl;
+      if (isNative) {
+        redirectUrl = 'com.vicky.orbitmusic://login-callback';
+      } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        redirectUrl = window.location.origin;
+      } else {
+        // Force the production URL so it doesn't redirect to a random Vercel deployment URL
+        // Replace this with your actual custom domain if you have one.
+        redirectUrl = 'https://orbit-music-two.vercel.app'; 
+      }
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
