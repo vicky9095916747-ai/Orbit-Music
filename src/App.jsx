@@ -1,6 +1,7 @@
 import React from 'react';
 import { PlayerProvider, usePlayer } from './PlayerContext';
 import { useAuth } from './AuthContext';
+import { supabase } from './supabaseClient';
 import StarField from './StarField';
 import TopBar from './TopBar';
 import LeftNav from './LeftNav';
@@ -133,20 +134,44 @@ export default function App() {
       try {
         const url = new URL(event.url);
         if (url.hostname === 'login-callback') {
-          // Tell Capacitor Browser to close (the system browser we used to log in)
+          // Close the external browser
           if (Capacitor.isNativePlatform()) {
             await Browser.close().catch(() => {});
           }
-          
-          // Force the webview to navigate safely to the same origin but with the new hash/search params
-          // This forces a full reload, letting Supabase natively intercept and handle the OAuth token
-          const params = url.search + url.hash;
-          if (params) {
-            window.location.href = window.location.origin + url.pathname + params;
+
+          // Extract tokens from the URL hash fragment
+          // Supabase implicit flow returns: #access_token=...&refresh_token=...&...
+          const hashParams = new URLSearchParams(
+            (url.hash || '').replace(/^#/, '')
+          );
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
+
+          if (accessToken && refreshToken) {
+            // Directly set the session — this is the reliable approach for Capacitor
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (error) {
+              console.error('Failed to set session from deep link:', error.message);
+            }
+          } else {
+            // Fallback: try query params (some OAuth flows use query instead of hash)
+            const queryAccess = url.searchParams.get('access_token');
+            const queryRefresh = url.searchParams.get('refresh_token');
+            if (queryAccess && queryRefresh) {
+              await supabase.auth.setSession({
+                access_token: queryAccess,
+                refresh_token: queryRefresh,
+              });
+            } else {
+              console.warn('Deep link received but no tokens found:', event.url);
+            }
           }
         }
       } catch (e) {
-        console.error('Failed to parse app URL', e);
+        console.error('Failed to handle app URL:', e);
       }
     });
     return () => { listener.then(l => l.remove()); };

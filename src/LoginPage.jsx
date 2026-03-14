@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { supabase } from './supabaseClient';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
+import { App as CapApp } from '@capacitor/app';
 
 // ── Mini Starfield — green/black ───────────────────────────────
 function LoginStars() {
@@ -147,6 +148,15 @@ export default function LoginPage() {
   const [success, setSuccess]   = useState('');
   const [loading, setLoading]   = useState(false);
   const [gLoading, setGLoading] = useState(false);
+
+  // Reset Google loading state when deep link callback arrives
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const listener = CapApp.addListener('appUrlOpen', () => {
+      setGLoading(false);
+    });
+    return () => { listener.then(l => l.remove()); };
+  }, []);
 
   async function handleGoogle() {
     setGLoading(true); setError('');
