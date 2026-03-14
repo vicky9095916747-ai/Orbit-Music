@@ -64,8 +64,8 @@ export default function TopBar() {
         </span>
       </div>
 
-      {/* Search Bar */}
-      <form className="search-bar" onSubmit={handleSearch} id="search-form">
+      {/* Search Bar - Hidden on small screens */}
+      <form className="search-bar topbar-search" onSubmit={handleSearch} id="search-form">
         <span className="search-icon">🔍</span>
         <input
           ref={inputRef}
@@ -82,15 +82,25 @@ export default function TopBar() {
         />
       </form>
 
+      {/* Mobile Search Button - Only visible on small screens */}
+      <button 
+        className="btn-icon mobile-search-btn" 
+        onClick={() => setActiveView('search')}
+        title="Search"
+      >
+        🔍
+      </button>
+
       {/* Right actions */}
       <div className="flex items-center gap-2" style={{ marginLeft: 'auto' }}>
         <button
           id="settings-btn"
-          className="btn btn-ghost"
+          className="btn btn-ghost settings-btn-top"
           onClick={() => setShowSettings(true)}
-          style={{ fontSize: '0.8rem', padding: '7px 14px' }}
+          style={{ padding: '7px 14px' }}
         >
-          ⚙️ Settings
+          <span className="settings-icon">⚙️</span>
+          <span className="settings-text" style={{ marginLeft: '6px' }}>Settings</span>
         </button>
         <div className="avatar tooltip" data-tip="You" id="user-avatar">V</div>
       </div>

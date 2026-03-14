@@ -525,6 +525,10 @@ body {
   transition: all var(--fast) var(--ease-out);
 }
 
+.mobile-search-btn {
+  display: none;
+}
+
 .search-input::placeholder { color: var(--text-dim); }
 
 .search-input:focus {
@@ -1476,11 +1480,12 @@ body {
   .orbit-logo-icon { width: 24px; height: 24px; }
 
   /* Search takes full width */
-  .search-bar { max-width: none; flex: 1; }
+  .search-bar.topbar-search { max-width: none; flex: 1; }
   .search-input { font-size: 0.82rem; padding: 8px 12px 8px 38px; border-radius: 20px; }
 
   /* Settings btn — icon only on tablet */
-  #settings-btn span:not(:first-child) { display: none; }
+  .settings-btn-top { border-radius: 50%; padding: 8px; }
+  .settings-text { display: none; }
 
   /* Now playing — stack differently */
   .now-playing-bar { padding: 0 12px; gap: 8px; justify-content: space-between; }
@@ -1528,7 +1533,11 @@ body {
   .orbit-logo-icon { width: 22px; height: 22px; }
 
   /* Search bar slimmer */
-  .search-input { font-size: 0.78rem; padding: 7px 10px 7px 34px; }
+  .topbar-search { display: none !important; } /* Hide full search bar on phone */
+  .mobile-search-btn { display: flex; } /* Show search icon */
+
+  /* Larger touch targets for icon buttons */
+  .btn-icon { width: 40px; height: 40px; font-size: 1.15rem; }
 
   /* Now playing — ultra compact */
   .now-playing-bar { padding: 0 8px; gap: 4px; }
@@ -1574,8 +1583,8 @@ body {
   #user-avatar { display: none; }
 
   /* Settings btn text */
-  #settings-btn { font-size: 0; padding: 8px; border-radius: 50%; }
-  #settings-btn::before { content: '⚙️'; font-size: 1rem; }
+  .settings-btn-top { padding: 8px !important; border-radius: 50% !important; }
+  .settings-icon { font-size: 1.1rem !important; }
 
   /* Category pills scroll horizontally */
   .category-pills { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
