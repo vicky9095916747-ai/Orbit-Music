@@ -14,13 +14,23 @@ export default function RightPanel() {
     playFromQueue, removeFromQueue,
     history,
     addToQueueNext,
-    rightPanelOpen,
+    rightPanelOpen, setRightPanelOpen,
   } = usePlayer();
 
-  if (!rightPanelOpen) return null;
+  if (!rightPanelOpen && typeof window !== 'undefined' && window.innerWidth > 768) return null;
+
+  function handlePlayFromQueue(idx) {
+    playFromQueue(idx);
+    if (window.innerWidth <= 768) setRightPanelOpen(false);
+  }
 
   return (
-    <aside className="right-panel stagger-in" style={{ animationDelay: '0.2s' }}>
+    <>
+      {/* Mobile backdrop */}
+      {rightPanelOpen && (
+        <div className="mobile-backdrop" onClick={() => setRightPanelOpen(false)}></div>
+      )}
+      <aside className={`right-panel stagger-in ${rightPanelOpen ? 'open' : ''}`} style={{ animationDelay: '0.2s' }}>
       {/* Queue section */}
       <div className="panel-section">
         <div className="section-header">
@@ -42,7 +52,7 @@ export default function RightPanel() {
                 key={`${track.videoId}-${idx}`}
                 id={`queue-item-${idx}`}
                 className={`queue-item ${idx === queueIndex ? 'current-queue-item' : ''}`}
-                onClick={() => playFromQueue(idx)}
+                onClick={() => handlePlayFromQueue(idx)}
               >
                 <div style={{ minWidth: 16, fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'right' }}>
                   {idx === queueIndex && isPlaying ? '▶' : idx + 1}
@@ -120,7 +130,10 @@ export default function RightPanel() {
             <div
               key={`history-${track.videoId}-${idx}`}
               className="queue-item"
-              onClick={() => addToQueueNext(track)}
+              onClick={() => {
+                addToQueueNext(track);
+                if (window.innerWidth <= 768) setRightPanelOpen(false);
+              }}
               title="Click to play next"
             >
               <img src={track.thumbnail} alt="" className="queue-thumb" />
@@ -132,6 +145,7 @@ export default function RightPanel() {
           ))}
         </div>
       )}
-    </aside>
+      </aside>
+    </>
   );
 }

@@ -79,6 +79,7 @@ body {
   color: var(--text-bright);
   overflow: hidden;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
 }
 
@@ -116,6 +117,7 @@ body {
   grid-template-rows: var(--topbar-h) 1fr var(--nowplaying-h);
   grid-template-columns: var(--sidebar-w) 1fr var(--right-panel-w);
   height: 100vh;
+  height: 100dvh;
   position: relative;
   transition: grid-template-columns var(--med) var(--ease-out);
 }
@@ -202,6 +204,10 @@ body {
   z-index: 200;
   position: relative;
 }
+
+.np-left { min-width: 0; width: 260px; flex-shrink: 0; }
+.np-center { max-width: 600px; min-width: 0; }
+.np-right { width: 260px; flex-shrink: 0; justify-content: flex-end; }
 
 /* ══════════════════════════════════
    GLASSMORPHISM CARD
@@ -1425,10 +1431,10 @@ body {
   /* Left nav becomes a fixed overlay drawer */
   .left-nav {
     position: fixed;
-    left: -240px;
+    left: -280px;
     top: 0;
     bottom: 0;
-    width: 240px;
+    width: 280px;
     z-index: 300;
     transition: left var(--med) var(--ease-out);
     border-right: 1px solid var(--glass-border);
@@ -1436,8 +1442,31 @@ body {
 
   .left-nav.open { left: 0; }
 
-  /* Right panel hidden on mobile */
-  .right-panel { display: none !important; }
+  /* Right panel becomes a fixed overlay drawer */
+  .right-panel { 
+    display: block !important;
+    position: fixed;
+    right: -320px;
+    top: 0;
+    bottom: 0;
+    width: 300px;
+    z-index: 300;
+    transition: right var(--med) var(--ease-out);
+    border-left: 1px solid var(--glass-border);
+  }
+  
+  .right-panel.open { right: 0; }
+
+  /* Mobile Backdrop */
+  .mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 250;
+    animation: fadeIn 0.3s ease-out forwards;
+  }
 
   /* Topbar — compact */
   .topbar { padding: 0 12px; gap: 10px; }
@@ -1454,9 +1483,18 @@ body {
   #settings-btn span:not(:first-child) { display: none; }
 
   /* Now playing — stack differently */
-  .now-playing-bar { padding: 0 12px; gap: 8px; }
+  .now-playing-bar { padding: 0 12px; gap: 8px; justify-content: space-between; }
   .play-btn { width: 40px; height: 40px; font-size: 1rem; }
   .album-art { width: 42px; height: 42px; }
+
+  .np-left { width: auto; flex: 1; min-width: 0; }
+  .np-center { width: auto; flex: none; }
+  .np-right { width: auto; flex: none; }
+
+  /* Hide progress bar and secondary controls on tablet */
+  .progress-container { display: none; }
+  #shuffle-btn, #repeat-btn { display: none; }
+  .time-tooltip { display: none; }
 
   /* Volume slider hidden on tablet */
   .volume-slider { display: none; }
@@ -1493,9 +1531,19 @@ body {
   .search-input { font-size: 0.78rem; padding: 7px 10px 7px 34px; }
 
   /* Now playing — ultra compact */
-  .now-playing-bar { padding: 0 10px; gap: 6px; }
-  .album-art { width: 36px; height: 36px; border-radius: 6px; }
-  .play-btn { width: 36px; height: 36px; font-size: 0.9rem; }
+  .now-playing-bar { padding: 0 8px; gap: 4px; }
+  .album-art { width: 32px; height: 32px; border-radius: 6px; }
+  .play-btn { width: 34px; height: 34px; font-size: 0.9rem; }
+  
+  /* On tiny phone, hide time labels */
+  .np-center span { display: none; }
+  
+  .np-left { flex: 1; }
+  .np-center { flex: 0 0 auto; }
+  .np-right { flex: 0 0 auto; }
+  
+  .right-panel { width: 280px; }
+  .left-nav { width: 260px; }
 
   /* Hide waveform and expand button on tiny screens */
   .waveform, #expand-player-btn { display: none !important; }
@@ -1509,14 +1557,14 @@ body {
   }
 
   .track-card .track-thumbnail {
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     aspect-ratio: 1;
     border-radius: 8px 0 0 8px;
     flex-shrink: 0;
   }
 
-  .track-card .track-info { padding: 8px 10px; flex: 1; min-width: 0; }
+  .track-card .track-info { padding: 6px 8px; flex: 1; min-width: 0; }
   .track-card .play-overlay { border-radius: 10px; }
 
   /* Panel section padding */

@@ -22,6 +22,7 @@ export default function SearchView() {
     searchYouTube,
     playTrack,
     addToQueue,
+    setShowSettings,
   } = usePlayer();
 
   const [activeCat, setActiveCat] = useState(null);

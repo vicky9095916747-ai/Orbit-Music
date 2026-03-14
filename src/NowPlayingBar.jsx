@@ -114,7 +114,7 @@ export default function NowPlayingBar() {
       />
 
       {/* Track info */}
-      <div className="flex items-center gap-3" style={{ minWidth: 0, width: 220, flexShrink: 0 }}>
+      <div className="np-left flex items-center gap-3">
         <AlbumArt track={currentTrack} isPlaying={isPlaying} />
 
         {currentTrack ? (
@@ -146,7 +146,7 @@ export default function NowPlayingBar() {
       </div>
 
       {/* Center: controls + progress */}
-      <div className="flex flex-col items-center gap-2 flex-1" style={{ maxWidth: 600, minWidth: 0 }}>
+      <div className="np-center flex flex-col items-center gap-2 flex-1">
         {/* Control buttons */}
         <div className="flex items-center gap-3">
           {/* Shuffle */}
@@ -235,7 +235,7 @@ export default function NowPlayingBar() {
       </div>
 
       {/* Right: volume + extras */}
-      <div className="flex items-center gap-2" style={{ width: 220, flexShrink: 0, justifyContent: 'flex-end' }}>
+      <div className="np-right flex items-center gap-2">
         {/* Waveform */}
         <Waveform playing={isPlaying} />
 

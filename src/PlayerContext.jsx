@@ -59,8 +59,8 @@ export function PlayerProvider({ children }) {
   // ─── UI state ──────────────────────────────────────────
   const [activeView, setActiveView] = useState('home');
   const [showSettings, setShowSettings] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
+  const [rightPanelOpen, setRightPanelOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth > 768);
   const [expandedPlayer, setExpandedPlayer] = useState(false);
   const [activePlaylist, setActivePlaylist] = useState(null); // playlist id being viewed
 

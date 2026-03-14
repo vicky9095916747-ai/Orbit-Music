@@ -10,7 +10,7 @@ const NAV_ITEMS = [
 export default function LeftNav() {
   const {
     activeView, setActiveView,
-    sidebarCollapsed,
+    sidebarCollapsed, setSidebarCollapsed,
     playlists, likedSongs,
     createPlaylist,
     deletePlaylist,
@@ -32,11 +32,23 @@ export default function LeftNav() {
 
   function openPlaylist(pl) {
     setActivePlaylist(pl.id);
-    setActiveView('library');
+    handleNav('library');
+  }
+
+  function handleNav(id) {
+    setActiveView(id);
+    if (window.innerWidth <= 768) {
+      setSidebarCollapsed(true);
+    }
   }
 
   return (
-    <nav className={`left-nav stagger-in ${!sidebarCollapsed ? 'open' : ''}`} style={{ animationDelay: '0.1s' }}>
+    <>
+      {/* Mobile backdrop */}
+      {!sidebarCollapsed && (
+        <div className="mobile-backdrop" onClick={() => setSidebarCollapsed(true)}></div>
+      )}
+      <nav className={`left-nav stagger-in ${!sidebarCollapsed ? 'open' : ''}`} style={{ animationDelay: '0.1s' }}>
       {/* Main nav */}
       <div className="nav-section">
         {NAV_ITEMS.map(item => (
@@ -44,7 +56,7 @@ export default function LeftNav() {
             key={item.id}
             id={`nav-${item.id}`}
             className={`nav-item ${activeView === item.id ? 'active' : ''}`}
-            onClick={() => setActiveView(item.id)}
+            onClick={() => handleNav(item.id)}
             title={sidebarCollapsed ? item.label : ''}
           >
             <span className="nav-icon">{item.icon}</span>
@@ -56,7 +68,7 @@ export default function LeftNav() {
         <div
           id="nav-liked"
           className={`nav-item ${activeView === 'liked' ? 'active' : ''}`}
-          onClick={() => setActiveView('liked')}
+          onClick={() => handleNav('liked')}
           title={sidebarCollapsed ? 'Liked Songs' : ''}
         >
           <span className="nav-icon">💜</span>
@@ -167,6 +179,7 @@ export default function LeftNav() {
           </div>
         </>
       )}
-    </nav>
+      </nav>
+    </>
   );
 }
