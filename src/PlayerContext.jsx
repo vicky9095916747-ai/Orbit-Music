@@ -41,6 +41,11 @@ export function PlayerProvider({ children }) {
   // ─── Playback modes ────────────────────────────────────
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState('none'); // 'none' | 'one' | 'all'
+  const repeatRef = useRef(repeat);
+  useEffect(() => { repeatRef.current = repeat; }, [repeat]);
+
+  // ─── Refs for YT callbacks ─────────────────────────────
+  const playNextRef = useRef(null);
 
   // ─── Playlists ─────────────────────────────────────────
   const [playlists, setPlaylists] = useState(() => {
@@ -110,7 +115,9 @@ export function PlayerProvider({ children }) {
         onStateChange: handleYTStateChange,
         onError: (e) => {
           console.warn('YT Player error', e.data);
-          setTimeout(() => playNext(), 1000);
+          setTimeout(() => {
+            if (playNextRef.current) playNextRef.current();
+          }, 1000);
         }
       }
     });
@@ -161,11 +168,11 @@ export function PlayerProvider({ children }) {
   }
 
   function handleEnd() {
-    if (repeat === 'one') {
+    if (repeatRef.current === 'one') {
       playerRef.current?.seekTo(0);
       playerRef.current?.playVideo();
     } else {
-      playNext();
+      if (playNextRef.current) playNextRef.current();
     }
   }
 
@@ -237,6 +244,10 @@ export function PlayerProvider({ children }) {
     setQueueIndex(nextIdx);
     loadTrack(queue[nextIdx], true);
   }, [queue, queueIndex, shuffle, repeat, loadTrack]);
+
+  useEffect(() => {
+    playNextRef.current = playNext;
+  }, [playNext]);
 
   const playPrev = useCallback(() => {
     if (currentTime > 3) {
