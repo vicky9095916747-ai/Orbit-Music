@@ -1428,8 +1428,12 @@ body {
   body { overflow: hidden; }
 
   .app-shell {
-    grid-template-columns: 0 1fr 0 !important;
+    grid-template-columns: 1fr !important;
     grid-template-rows: var(--topbar-h) 1fr var(--nowplaying-h);
+  }
+
+  .main-content { 
+    grid-column: 1 !important; 
   }
 
   /* Left nav becomes a fixed overlay drawer */
