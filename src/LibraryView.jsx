@@ -36,6 +36,7 @@ export default function LibraryView() {
     removeTrackFromPlaylist,
     deletePlaylist,
     createPlaylist,
+    saveAsLocalPlaylist,
     playTrack,
     history,
   } = usePlayer();
@@ -66,6 +67,15 @@ export default function LibraryView() {
             {openPl.id.startsWith('yt-') ? '▶️' : '🎵'} {openPl.name}
           </div>
           <span className="badge badge-ion">{openPl.tracks ? openPl.tracks.length : '...'} tracks</span>
+          {openPl.id.startsWith('yt-') && openPl.tracks && (
+            <button className="btn btn-ghost ml-auto" style={{ fontSize: '0.75rem', color: 'var(--ion)' }}
+              onClick={() => {
+                const pl = saveAsLocalPlaylist(openPl.name, openPl.tracks);
+                alert(`Saved as "${pl.name}" in Local Playlists`);
+              }}>
+              💾 Save to Local
+            </button>
+          )}
           {!openPl.id.startsWith('yt-') && (
             <button className="btn btn-ghost ml-auto" style={{ fontSize: '0.75rem', color: 'var(--stellar)' }}
               onClick={() => { deletePlaylist(openPl.id); setActivePlaylist(null); }}>
@@ -92,6 +102,19 @@ export default function LibraryView() {
                 onClick={() => playTrack(openPl.tracks[0], openPl.tracks)}>
                 ▶ Play All
               </button>
+              {openPl.tracks.length > 0 && (
+                <button className="btn btn-secondary" style={{ fontSize: '0.82rem', marginLeft: 8 }}
+                  onClick={() => {
+                    const shuffled = [...openPl.tracks];
+                    for (let i = shuffled.length - 1; i > 0; i--) {
+                      const j = Math.floor(Math.random() * (i + 1));
+                      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                    }
+                    playTrack(shuffled[0], shuffled);
+                  }}>
+                  🔀 Shuffle Play
+                </button>
+              )}
             </div>
             {openPl.tracks.map(track => (
               <TrackRow
@@ -197,6 +220,19 @@ export default function LibraryView() {
                   onClick={() => playTrack(likedSongs[0], likedSongs)}>
                   ▶ Play All
                 </button>
+                {likedSongs.length > 0 && (
+                  <button className="btn btn-secondary" style={{ fontSize: '0.82rem', marginLeft: 8 }}
+                    onClick={() => {
+                      const shuffled = [...likedSongs];
+                      for (let i = shuffled.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                      }
+                      playTrack(shuffled[0], shuffled);
+                    }}>
+                    🔀 Shuffle Play
+                  </button>
+                )}
               </div>
               {likedSongs.map(track => (
                 <TrackRow key={track.videoId} track={track} playlist={likedSongs} />
@@ -222,6 +258,19 @@ export default function LibraryView() {
                   onClick={() => playTrack(history[0], history)}>
                   ▶ Play All
                 </button>
+                {history.length > 0 && (
+                  <button className="btn btn-secondary" style={{ fontSize: '0.82rem', marginLeft: 8 }}
+                    onClick={() => {
+                      const shuffled = [...history];
+                      for (let i = shuffled.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                      }
+                      playTrack(shuffled[0], shuffled);
+                    }}>
+                    🔀 Shuffle Play
+                  </button>
+                )}
               </div>
               {history.map(track => (
                 <TrackRow key={track.videoId} track={track} playlist={history} />

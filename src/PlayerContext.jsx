@@ -341,6 +341,17 @@ export function PlayerProvider({ children }) {
     return pl;
   }, []);
 
+  const saveAsLocalPlaylist = useCallback((name, tracks) => {
+    const pl = {
+      id: Date.now().toString(),
+      name,
+      tracks: tracks.map(t => ({ ...t, addedAt: Date.now() })),
+      createdAt: Date.now()
+    };
+    setPlaylists(prev => [...prev, pl]);
+    return pl;
+  }, []);
+
   const deletePlaylist = useCallback((id) => {
     setPlaylists(prev => prev.filter(p => p.id !== id));
   }, []);
@@ -559,7 +570,7 @@ export function PlayerProvider({ children }) {
         seekTo, changeVolume, toggleMute,
         addToQueue, addToQueueNext, removeFromQueue, playFromQueue, shuffleQueue,
         toggleLike, isLiked,
-        createPlaylist, deletePlaylist, addTrackToPlaylist, removeTrackFromPlaylist,
+        createPlaylist, deletePlaylist, addTrackToPlaylist, removeTrackFromPlaylist, saveAsLocalPlaylist,
         fetchYouTubePlaylists, fetchYouTubePlaylistTracks,
         searchYouTube
       }}
