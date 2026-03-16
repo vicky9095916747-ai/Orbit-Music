@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePlayer } from './PlayerContext';
 import { TrackCard, SkeletonGrid } from './HomeView';
 
@@ -26,6 +26,19 @@ export default function SearchView() {
   } = usePlayer();
 
   const [activeCat, setActiveCat] = useState(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    // On mobile the TopBar search is hidden; focus this field instead.
+    inputRef.current?.focus?.();
+  }, []);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    setActiveCat(null);
+    searchYouTube(searchQuery);
+  }
 
   function handleCategoryClick(preset) {
     setActiveCat(preset.label);
@@ -49,6 +62,21 @@ export default function SearchView() {
           Find music, podcasts, and audio from across the universe
         </div>
       </div>
+
+      {/* Mobile search input (TopBar input is hidden on phones) */}
+      <form className="search-bar search-view-bar" onSubmit={handleSubmit} style={{ marginBottom: 18 }}>
+        <span className="search-icon">🔍</span>
+        <input
+          ref={inputRef}
+          type="text"
+          className="search-input"
+          placeholder="Search music, podcasts, ambient sounds…"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          autoComplete="off"
+          enterKeyHint="search"
+        />
+      </form>
 
       {/* Quick category grid */}
       <div style={{ marginBottom: 24 }}>
