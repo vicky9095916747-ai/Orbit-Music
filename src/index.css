@@ -1191,39 +1191,7 @@ body {
   margin-bottom: 32px;
 }
 
-/* ══════════════════════════════════
-   RESPONSIVE — Tablet ≥768px
-══════════════════════════════════ */
-
-@media (max-width: 1024px) {
-  :root {
-    --right-panel-w: 0px;
-    --sidebar-w: 200px;
-  }
-  .right-panel { display: none; }
-}
-
-@media (max-width: 768px) {
-  :root {
-    --sidebar-w: 0px;
-    --sidebar-w-coll: 0px;
-  }
-
-  .left-nav { display: none; }
-
-  .app-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: var(--topbar-h) 1fr var(--nowplaying-h);
-  }
-
-  .main-content { grid-column: 1; }
-
-  .grid-4 { grid-template-columns: repeat(2, 1fr); }
-  .grid-5 { grid-template-columns: repeat(2, 1fr); }
-  .grid-auto { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
-
-  .now-playing-bar { padding: 0 12px; gap: 8px; }
-}
+/* (removed older responsive block — it conflicted with the mobile drawer rules below) */
 
 /* ══════════════════════════════════
    GRADIENT MESH BACKGROUNDS
