@@ -146,6 +146,7 @@ export default function App() {
           );
           const accessToken = hashParams.get('access_token');
           const refreshToken = hashParams.get('refresh_token');
+          const providerToken = hashParams.get('provider_token') || hashParams.get('providerToken');
 
           if (accessToken && refreshToken) {
             // Directly set the session — this is the reliable approach for Capacitor
@@ -156,15 +157,25 @@ export default function App() {
             if (error) {
               console.error('Failed to set session from deep link:', error.message);
             }
+
+            // Supabase includes the Google provider token in the callback URL for scoped OAuth.
+            // Persist it so YouTube API calls work reliably in Capacitor.
+            if (providerToken) {
+              try { localStorage.setItem('orbit_provider_token', providerToken); } catch (_) {}
+            }
           } else {
             // Fallback: try query params (some OAuth flows use query instead of hash)
             const queryAccess = url.searchParams.get('access_token');
             const queryRefresh = url.searchParams.get('refresh_token');
+            const queryProvider = url.searchParams.get('provider_token') || url.searchParams.get('providerToken');
             if (queryAccess && queryRefresh) {
               await supabase.auth.setSession({
                 access_token: queryAccess,
                 refresh_token: queryRefresh,
               });
+              if (queryProvider) {
+                try { localStorage.setItem('orbit_provider_token', queryProvider); } catch (_) {}
+              }
             } else {
               console.warn('Deep link received but no tokens found:', event.url);
             }

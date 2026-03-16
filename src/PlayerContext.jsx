@@ -5,6 +5,9 @@ const PlayerContext = createContext(null);
 
 export function PlayerProvider({ children }) {
   const { session } = useAuth();
+  const providerToken =
+    session?.provider_token ||
+    (typeof window !== 'undefined' ? localStorage.getItem('orbit_provider_token') : null);
 
   // ─── YouTube Player state ───────────────────────────────
   const playerRef    = useRef(null);
@@ -385,7 +388,7 @@ export function PlayerProvider({ children }) {
   // ─── YouTube Playlists ────────────────────────────────
 
   const fetchYouTubePlaylists = useCallback(async () => {
-    const token = session?.provider_token;
+    const token = providerToken;
     if (!token) return;
     setFetchingYtPlaylists(true);
     try {
@@ -408,10 +411,10 @@ export function PlayerProvider({ children }) {
     } finally {
       setFetchingYtPlaylists(false);
     }
-  }, [session]);
+  }, [providerToken]);
 
   const fetchYouTubePlaylistTracks = useCallback(async (playlistId) => {
-    const token = session?.provider_token;
+    const token = providerToken;
     if (!token) return [];
     try {
       let pageToken = '';
@@ -450,14 +453,14 @@ export function PlayerProvider({ children }) {
       console.error(err);
       return [];
     }
-  }, [session]);
+  }, [providerToken]);
 
   // ─── YouTube Search ───────────────────────────────────
 
   const searchYouTube = useCallback(async (query, categoryId = '10') => {
     if (!query.trim()) return;
     
-    const token = session?.provider_token;
+    const token = providerToken;
     if (!token) {
       setSearchError('Sign in with Google to enable search. (Token missing)');
       setActiveView('search');
@@ -509,7 +512,7 @@ export function PlayerProvider({ children }) {
     } finally {
       setSearching(false);
     }
-  }, [session]);
+  }, [providerToken]);
 
   // ─── Keyboard shortcuts ───────────────────────────────
   useEffect(() => {
