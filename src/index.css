@@ -209,24 +209,6 @@ body {
 .np-center { max-width: 600px; min-width: 0; }
 .np-right { width: 260px; flex-shrink: 0; justify-content: flex-end; }
 
-/* Slim progress line for mobile (and desktop, subtle) */
-.np-mobile-progress {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.np-mobile-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--plasma), var(--ion));
-  box-shadow: 0 0 10px var(--plasma-dim);
-}
-
 /* ══════════════════════════════════
    GLASSMORPHISM CARD
 ══════════════════════════════════ */
@@ -1491,7 +1473,7 @@ body {
   .np-center { width: auto; flex: none; }
   .np-right { width: auto; flex: none; }
 
-  /* Keep slim progress line; hide the big progress only */
+  /* Hide progress bar and secondary controls on tablet */
   .progress-container { display: none; }
   #shuffle-btn, #repeat-btn { display: none; }
   .time-tooltip { display: none; }
@@ -1550,7 +1532,7 @@ body {
   .right-panel { width: 280px; }
   .left-nav { width: 260px; }
 
-  /* Hide waveform and expand button on tiny screens (tap track area to expand) */
+  /* Hide waveform and expand button on tiny screens */
   .waveform, #expand-player-btn { display: none !important; }
 
   /* Track card — horizontal list style on phone */

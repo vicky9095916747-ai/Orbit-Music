@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './AuthContext';
-import { searchSaavnSongs, getSaavnPlaylist } from './saavnClient';
-import { Capacitor } from '@capacitor/core';
 
 const PlayerContext = createContext(null);
 
@@ -15,10 +13,6 @@ export function PlayerProvider({ children }) {
   const playerRef    = useRef(null);
   const [playerReady, setPlayerReady] = useState(false);
   const [playerState, setPlayerState] = useState(-1); // YT.PlayerState
-
-  // ─── Audio (JioSaavn) player state ─────────────────────
-  const audioRef = useRef(null);
-  const [audioReady, setAudioReady] = useState(false);
 
   // ─── Current track ─────────────────────────────────────
   const [currentTrack, setCurrentTrack] = useState(null);
@@ -79,52 +73,10 @@ export function PlayerProvider({ children }) {
   const [activePlaylist, setActivePlaylist] = useState(null); // playlist id being viewed
 
   // ─── Search state ──────────────────────────────────────
-  const [searchProvider, setSearchProvider] = useState('saavn'); // 'saavn' | 'youtube'
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
-  const [searchPlaylist, setSearchPlaylist] = useState(null); // JioSaavn playlist import preview
-
-  // ─── Bootstrap Audio element ───────────────────────────
-  useEffect(() => {
-    if (audioRef.current) return;
-    const a = new Audio();
-    a.preload = 'metadata';
-    a.crossOrigin = 'anonymous';
-
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
-    const onTimeUpdate = () => setCurrentTime(a.currentTime || 0);
-    const onLoadedMeta = () => setDuration(a.duration || 0);
-    const onEnded = () => handleEnd();
-    const onError = () => {
-      setTimeout(() => {
-        if (playNextRef.current) playNextRef.current();
-      }, 800);
-    };
-
-    a.addEventListener('play', onPlay);
-    a.addEventListener('pause', onPause);
-    a.addEventListener('timeupdate', onTimeUpdate);
-    a.addEventListener('loadedmetadata', onLoadedMeta);
-    a.addEventListener('ended', onEnded);
-    a.addEventListener('error', onError);
-
-    audioRef.current = a;
-    setAudioReady(true);
-
-    return () => {
-      a.removeEventListener('play', onPlay);
-      a.removeEventListener('pause', onPause);
-      a.removeEventListener('timeupdate', onTimeUpdate);
-      a.removeEventListener('loadedmetadata', onLoadedMeta);
-      a.removeEventListener('ended', onEnded);
-      a.removeEventListener('error', onError);
-      try { a.pause(); } catch (_) {}
-      audioRef.current = null;
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Persist to localStorage ───────────────────────────
   useEffect(() => { localStorage.setItem('orbit_queue', JSON.stringify(queue)); }, [queue]);
@@ -205,15 +157,9 @@ export function PlayerProvider({ children }) {
   function startProgressPoll() {
     stopProgressPoll();
     progressTimerRef.current = setInterval(() => {
-      if (currentTrack?.source === 'saavn') {
-        const a = audioRef.current;
-        if (a) {
-          setCurrentTime(a.currentTime || 0);
-          setDuration(a.duration || 0);
-        }
-        return;
+      if (playerRef.current?.getCurrentTime) {
+        setCurrentTime(playerRef.current.getCurrentTime());
       }
-      if (playerRef.current?.getCurrentTime) setCurrentTime(playerRef.current.getCurrentTime());
     }, 500);
   }
 
@@ -226,16 +172,8 @@ export function PlayerProvider({ children }) {
 
   function handleEnd() {
     if (repeatRef.current === 'one') {
-      if (currentTrack?.source === 'saavn') {
-        const a = audioRef.current;
-        if (a) {
-          a.currentTime = 0;
-          a.play().catch(() => {});
-        }
-      } else {
-        playerRef.current?.seekTo(0);
-        playerRef.current?.playVideo();
-      }
+      playerRef.current?.seekTo(0);
+      playerRef.current?.playVideo();
     } else {
       if (playNextRef.current) playNextRef.current();
     }
@@ -249,20 +187,7 @@ export function PlayerProvider({ children }) {
     setCurrentTime(0);
     setDuration(0);
 
-    if (track.source === 'saavn') {
-      try { playerRef.current?.stopVideo?.(); } catch (_) {}
-
-      const a = audioRef.current;
-      if (a) {
-        a.src = track.streamUrl || '';
-        a.volume = muted ? 0 : Math.max(0, Math.min(1, volume / 100));
-        if (autoplay) a.play().catch(() => {});
-      }
-      startProgressPoll();
-    } else if (playerReady && playerRef.current) {
-      try { audioRef.current?.pause?.(); } catch (_) {}
-      try { audioRef.current && (audioRef.current.src = ''); } catch (_) {}
-
+    if (playerReady && playerRef.current) {
       if (autoplay) {
         playerRef.current.loadVideoById({ videoId: track.videoId, suggestedQuality: 'hd1080' });
       } else {
@@ -275,7 +200,7 @@ export function PlayerProvider({ children }) {
       const filtered = prev.filter(t => t.videoId !== track.videoId);
       return [track, ...filtered].slice(0, 20);
     });
-  }, [playerReady, muted, volume]);
+  }, [playerReady]);
 
   const playTrack = useCallback((track, newQueue = null) => {
     if (newQueue) {
@@ -296,20 +221,11 @@ export function PlayerProvider({ children }) {
   }, [loadTrack]);
 
   const togglePlay = useCallback(() => {
-    if (!currentTrack) return;
-
-    if (currentTrack.source === 'saavn') {
-      const a = audioRef.current;
-      if (!a) return;
-      if (isPlaying) a.pause();
-      else a.play().catch(() => {});
-      return;
-    }
-
     if (!playerRef.current || !playerReady) return;
     if (isPlaying) {
       playerRef.current.pauseVideo();
     } else {
+      if (!currentTrack) return;
       playerRef.current.playVideo();
     }
   }, [isPlaying, playerReady, currentTrack]);
@@ -339,12 +255,7 @@ export function PlayerProvider({ children }) {
   const playPrev = useCallback(() => {
     if (currentTime > 3) {
       // Restart current if more than 3s in
-      if (currentTrack?.source === 'saavn') {
-        const a = audioRef.current;
-        if (a) a.currentTime = 0;
-      } else {
-        playerRef.current?.seekTo(0);
-      }
+      playerRef.current?.seekTo(0);
       return;
     }
     if (queueIndex > 0) {
@@ -352,15 +263,10 @@ export function PlayerProvider({ children }) {
       setQueueIndex(prevIdx);
       loadTrack(queue[prevIdx], true);
     }
-  }, [currentTime, queueIndex, queue, loadTrack, currentTrack]);
+  }, [currentTime, queueIndex, queue, loadTrack]);
 
   const seekTo = useCallback((time) => {
     setCurrentTime(time);
-    if (currentTrack?.source === 'saavn') {
-      const a = audioRef.current;
-      if (a) a.currentTime = time;
-      return;
-    }
     playerRef.current?.seekTo(time, true);
   }, []);
 
@@ -368,8 +274,6 @@ export function PlayerProvider({ children }) {
     setVolume(v);
     setMuted(v === 0);
     playerRef.current?.setVolume(v);
-    const a = audioRef.current;
-    if (a) a.volume = Math.max(0, Math.min(1, v / 100));
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -377,11 +281,9 @@ export function PlayerProvider({ children }) {
       setMuted(false);
       playerRef.current?.unMute();
       playerRef.current?.setVolume(volume || 50);
-      if (audioRef.current) audioRef.current.volume = Math.max(0, Math.min(1, (volume || 50) / 100));
     } else {
       setMuted(true);
       playerRef.current?.mute();
-      if (audioRef.current) audioRef.current.volume = 0;
     }
   }, [muted, volume]);
 
@@ -612,95 +514,6 @@ export function PlayerProvider({ children }) {
     }
   }, [providerToken]);
 
-  // ─── JioSaavn Search (via your deployed API) ───────────
-  const searchSaavn = useCallback(async (query) => {
-    if (!query.trim()) return;
-
-    setSearching(true);
-    setSearchError('');
-    setSearchPlaylist(null);
-    setActiveView('search');
-
-    try {
-      const q = query.trim();
-      const looksLikePlaylist =
-        /^https?:\/\//i.test(q) ? /\/playlist\//i.test(q) : /^pl[a-z0-9]/i.test(q);
-
-      // If user pasted a JioSaavn/Saavn playlist link/ID, import it and show its tracks
-      if (looksLikePlaylist) {
-        const pl = await getSaavnPlaylist(q, { lyrics: false });
-        if (!pl) throw new Error('Could not import playlist. Try pasting only the playlist ID.');
-        const rawSongs = pl?.songs || pl?.list || pl?.tracks || pl?.items || pl?.data?.songs || [];
-        const rows = Array.isArray(rawSongs) ? rawSongs : [];
-
-        const tracks = rows
-          .filter(r => r?.id && (r?.media_url || r?.mediaUrl))
-          .map(r => ({
-            id: String(r.id),
-            videoId: `saavn-${r.id}`,
-            title: r.song || r.title || 'Unknown',
-            artist: r.primary_artists || r.singers || r.music || 'JioSaavn',
-            thumbnail: r.image || r.thumbnail || '',
-            duration: r.duration ? Number(r.duration) : '',
-            addedAt: Date.now(),
-            source: 'saavn',
-            streamUrl: r.media_url || r.mediaUrl || '',
-            saavn: r,
-          }));
-
-        const name = pl?.name || pl?.title || pl?.listname || pl?.data?.name || 'JioSaavn Playlist';
-        const pid = String(pl?.id || pl?.listid || pl?.data?.id || Date.now());
-
-        const playlistObj = {
-          id: `saavn-pl-${pid}`,
-          name,
-          tracks,
-          createdAt: Date.now(),
-          source: 'saavn',
-          url: q,
-        };
-
-        setSearchPlaylist(playlistObj);
-        setSearchResults(tracks);
-
-        // Save/import into local playlists (upsert by id)
-        setPlaylists(prev => {
-          const idx = prev.findIndex(p => p.id === playlistObj.id);
-          if (idx >= 0) {
-            const copy = [...prev];
-            copy[idx] = { ...copy[idx], name: playlistObj.name, tracks: playlistObj.tracks };
-            return copy;
-          }
-          return [playlistObj, ...prev];
-        });
-
-        return;
-      }
-
-      const rows = await searchSaavnSongs(query, { lyrics: false, songdata: true });
-      const tracks = (rows || [])
-        .filter(r => r?.id && r?.media_url)
-        .map(r => ({
-          id: String(r.id),
-          videoId: `saavn-${r.id}`,
-          title: r.song || r.title || 'Unknown',
-          artist: r.primary_artists || r.singers || r.music || 'JioSaavn',
-          thumbnail: r.image || '',
-          duration: r.duration ? Number(r.duration) : '',
-          addedAt: Date.now(),
-          source: 'saavn',
-          streamUrl: r.media_url,
-          saavn: r,
-        }));
-
-      setSearchResults(tracks);
-    } catch (err) {
-      setSearchError(err?.message || 'Search failed.');
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
   // ─── Keyboard shortcuts ───────────────────────────────
   useEffect(() => {
     const handleKey = (e) => {
@@ -747,179 +560,24 @@ export function PlayerProvider({ children }) {
     return () => window.removeEventListener('keydown', handleKey);
   }, [togglePlay, seekTo, currentTime, duration, changeVolume, volume, playNext, playPrev, toggleLike, toggleMute, currentTrack]);
 
-  // ─── MediaSession (Android notification / lockscreen card) ─────
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-    if (!currentTrack) return;
-
-    try {
-      const artworkSrc = currentTrack.thumbnail || '';
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: currentTrack.title || 'Unknown',
-        artist: currentTrack.artist || '',
-        album: currentTrack.source === 'saavn' ? 'JioSaavn' : 'YouTube',
-        artwork: artworkSrc ? [
-          { src: artworkSrc, sizes: '96x96', type: 'image/jpeg' },
-          { src: artworkSrc, sizes: '128x128', type: 'image/jpeg' },
-          { src: artworkSrc, sizes: '192x192', type: 'image/jpeg' },
-          { src: artworkSrc, sizes: '256x256', type: 'image/jpeg' },
-          { src: artworkSrc, sizes: '384x384', type: 'image/jpeg' },
-          { src: artworkSrc, sizes: '512x512', type: 'image/jpeg' },
-        ] : undefined,
-      });
-
-      navigator.mediaSession.setActionHandler('play', () => togglePlay());
-      navigator.mediaSession.setActionHandler('pause', () => togglePlay());
-      navigator.mediaSession.setActionHandler('previoustrack', () => playPrev());
-      navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
-        if (typeof details?.seekTime === 'number') seekTo(details.seekTime);
-      });
-      navigator.mediaSession.setActionHandler('seekforward', () => {
-        seekTo(Math.min(duration || 0, (currentTime || 0) + 10));
-      });
-      navigator.mediaSession.setActionHandler('seekbackward', () => {
-        seekTo(Math.max(0, (currentTime || 0) - 10));
-      });
-    } catch (_) {
-      // Ignore MediaSession errors (some WebViews are partial)
-    }
-  }, [currentTrack, togglePlay, playPrev, playNext, seekTo, currentTime, duration]);
-
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-    try {
-      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-    } catch (_) {}
-  }, [isPlaying]);
-
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-    if (!currentTrack) return;
-    if (!Number.isFinite(duration) || duration <= 0) return;
-    try {
-      navigator.mediaSession.setPositionState?.({
-        duration,
-        position: Math.min(duration, Math.max(0, currentTime || 0)),
-        playbackRate: isPlaying ? 1 : 0,
-      });
-    } catch (_) {}
-  }, [currentTrack, currentTime, duration, isPlaying]);
-
-  // ─── Native (Android) media notification via Capacitor plugin ──
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    let cancelled = false;
-
-    async function run() {
-      let CapacitorMusicControls;
-      try {
-        ({ CapacitorMusicControls } = await import('capacitor-music-controls-plugin'));
-      } catch (_) {
-        return;
-      }
-      if (cancelled) return;
-
-      if (!currentTrack) {
-        try { await CapacitorMusicControls.destroy?.(); } catch (_) {}
-        return;
-      }
-
-      const cover = currentTrack.thumbnail || '';
-      const hasPrev = queue.length > 1;
-      const hasNext = queue.length > 1;
-
-      try {
-        await CapacitorMusicControls.create({
-          track: currentTrack.title || '',
-          artist: currentTrack.artist || '',
-          album: currentTrack.source === 'saavn' ? 'JioSaavn' : 'YouTube',
-          cover,
-          hasPrev,
-          hasNext,
-          hasClose: true,
-          isPlaying: Boolean(isPlaying),
-          dismissable: true,
-          ticker: `Now playing "${currentTrack.title || ''}"`,
-          notificationIcon: 'notification',
-        });
-      } catch (_) {}
-    }
-
-    run();
-    return () => { cancelled = true; };
-  }, [currentTrack, isPlaying, queue.length]);
-
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    let cancelled = false;
-    async function run() {
-      let CapacitorMusicControls;
-      try {
-        ({ CapacitorMusicControls } = await import('capacitor-music-controls-plugin'));
-      } catch (_) {
-        return;
-      }
-      if (cancelled) return;
-      try { await CapacitorMusicControls.updateIsPlaying({ isPlaying: Boolean(isPlaying) }); } catch (_) {}
-    }
-    run();
-    return () => { cancelled = true; };
-  }, [isPlaying]);
-
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-
-    const handler = (event) => {
-      const message = event?.message || event?.detail?.message;
-      if (!message) return;
-
-      switch (message) {
-        case 'music-controls-next':
-          if (queue.length > 1) playNext();
-          else seekTo(Math.min(duration || 0, (currentTime || 0) + 10));
-          break;
-        case 'music-controls-previous':
-          if (queue.length > 1) playPrev();
-          else seekTo(Math.max(0, (currentTime || 0) - 10));
-          break;
-        case 'music-controls-pause':
-        case 'music-controls-play':
-        case 'music-controls-toggle-play-pause':
-          togglePlay();
-          break;
-        case 'music-controls-destroy':
-          // user dismissed notification; keep playback as-is
-          break;
-      }
-    };
-
-    // Android: plugin dispatches a DOM event named "controlsNotification"
-    document.addEventListener('controlsNotification', handler);
-
-    return () => {
-      document.removeEventListener('controlsNotification', handler);
-    };
-  }, [togglePlay, playNext, playPrev, queue.length, currentTime, duration, seekTo]);
-
   return (
     <PlayerContext.Provider
       value={{
         // State
-        playerRef, playerReady, playerState, audioRef, audioReady, currentTrack, isPlaying,
+        playerRef, playerReady, playerState, currentTrack, isPlaying,
         currentTime, duration, volume, muted,
         queue, queueIndex, history,
         shuffle, repeat,
         playlists, likedSongs, ytPlaylists, fetchingYtPlaylists,
         activeView, showSettings, sidebarCollapsed, rightPanelOpen,
         expandedPlayer, activePlaylist,
-        searchProvider, searchQuery, searchResults, searching, searchError, searchPlaylist,
+        searchQuery, searchResults, searching, searchError,
 
         // Setters
         setQueue, setQueueIndex, setShuffle, setRepeat, setPlaylists, setLikedSongs,
         setActiveView, setShowSettings, setSidebarCollapsed, setRightPanelOpen,
         setExpandedPlayer, setActivePlaylist,
-        setSearchProvider, setSearchQuery, setSearchResults, setSearchError, setSearchPlaylist,
+        setSearchQuery, setSearchResults, setSearchError,
 
         // Actions
         loadTrack, playTrack, togglePlay, playNext, playPrev,
@@ -928,8 +586,7 @@ export function PlayerProvider({ children }) {
         toggleLike, isLiked,
         createPlaylist, deletePlaylist, addTrackToPlaylist, removeTrackFromPlaylist, saveAsLocalPlaylist,
         fetchYouTubePlaylists, fetchYouTubePlaylistTracks,
-        searchYouTube,
-        searchSaavn
+        searchYouTube
       }}
     >
       {children}
