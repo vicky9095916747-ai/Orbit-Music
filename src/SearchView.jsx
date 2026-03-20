@@ -17,9 +17,12 @@ const SEARCH_PRESETS = [
 
 export default function SearchView() {
   const {
+    searchProvider, setSearchProvider,
     searchQuery, setSearchQuery,
     searchResults, searching, searchError,
+    searchPlaylist,
     searchYouTube,
+    searchSaavn,
     playTrack,
     addToQueue,
     setShowSettings,
@@ -37,12 +40,14 @@ export default function SearchView() {
     e.preventDefault();
     if (!searchQuery.trim()) return;
     setActiveCat(null);
-    searchYouTube(searchQuery);
+    if (searchProvider === 'youtube') searchYouTube(searchQuery);
+    else searchSaavn(searchQuery);
   }
 
   function handleCategoryClick(preset) {
     setActiveCat(preset.label);
-    searchYouTube(preset.query, preset.cat);
+    if (searchProvider === 'youtube') searchYouTube(preset.query, preset.cat);
+    else searchSaavn(preset.query);
   }
 
   function handlePlayAll() {
@@ -83,6 +88,20 @@ export default function SearchView() {
         <div className="section-header">
           <span className="section-title">Browse</span>
         </div>
+        <div className="category-pills" style={{ marginBottom: 10 }}>
+          <div
+            className={`pill ${searchProvider === 'saavn' ? 'active-pill' : ''}`}
+            onClick={() => setSearchProvider('saavn')}
+          >
+            🎶 JioSaavn
+          </div>
+          <div
+            className={`pill ${searchProvider === 'youtube' ? 'active-pill' : ''}`}
+            onClick={() => setSearchProvider('youtube')}
+          >
+            ▶ YouTube
+          </div>
+        </div>
         <div className="category-pills">
           {SEARCH_PRESETS.map(preset => (
             <div
@@ -109,13 +128,15 @@ export default function SearchView() {
           <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', maxWidth: 300, lineHeight: 1.5 }}>
             {searchError}
           </div>
-          <button
-            className="btn btn-ghost"
-            onClick={() => setShowSettings(true)}
-            style={{ fontSize: '0.8rem' }}
-          >
-            Check API Key
-          </button>
+          {searchProvider === 'youtube' && (
+            <button
+              className="btn btn-ghost"
+              onClick={() => setShowSettings(true)}
+              style={{ fontSize: '0.8rem' }}
+            >
+              Open Settings
+            </button>
+          )}
         </div>
       )}
 
@@ -130,6 +151,40 @@ export default function SearchView() {
               <span className="badge badge-ion">{searchResults.length} tracks</span>
             )}
           </div>
+
+          {searchPlaylist && !searching && (
+            <div className="glass-card" style={{ padding: 14, marginBottom: 14, display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
+                background: 'linear-gradient(135deg, var(--plasma-dim), var(--ion-dim))',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                {searchPlaylist.tracks?.[0]?.thumbnail ? (
+                  <img src={searchPlaylist.tracks[0].thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: '1.3rem' }}>🎶</span>
+                )}
+              </div>
+              <div className="overflow-hidden" style={{ flex: 1, minWidth: 0 }}>
+                <div className="font-display truncate" style={{ fontSize: '0.86rem', fontWeight: 800, letterSpacing: '0.06em' }}>
+                  Imported: {searchPlaylist.name}
+                </div>
+                <div className="truncate" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                  Saved to Library • {searchPlaylist.tracks?.length || 0} tracks
+                </div>
+              </div>
+              <button
+                className="btn btn-primary"
+                style={{ fontSize: '0.8rem' }}
+                onClick={() => {
+                  const list = searchPlaylist.tracks || [];
+                  if (list.length) playTrack(list[0], list);
+                }}
+              >
+                ▶ Play All
+              </button>
+            </div>
+          )}
 
           {searchResults.length > 0 && !searching && (
             <div style={{ marginBottom: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>

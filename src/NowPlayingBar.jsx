@@ -75,6 +75,13 @@ export default function NowPlayingBar() {
   const [showAddTo, setShowAddTo] = useState(false);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const canSeek = Boolean(currentTrack) && Number.isFinite(duration) && duration > 0;
+
+  function seekBy(deltaSec) {
+    if (!canSeek) return;
+    const next = Math.max(0, Math.min(duration, (currentTime || 0) + deltaSec));
+    seekTo(next);
+  }
 
   function handleProgressClick(e) {
     if (!progressRef.current || !duration) return;
@@ -99,6 +106,11 @@ export default function NowPlayingBar() {
 
   return (
     <div className="now-playing-bar">
+      {/* Mobile-friendly always-visible progress line */}
+      <div className="np-mobile-progress" aria-hidden="true">
+        <div className="np-mobile-progress-fill" style={{ width: `${progress}%` }} />
+      </div>
+
       {/* Hidden YouTube player — must NOT be 0×0 or browsers will mute audio */}
       <div
         id="yt-player"
@@ -114,7 +126,16 @@ export default function NowPlayingBar() {
       />
 
       {/* Track info */}
-      <div className="np-left flex items-center gap-3">
+      <div
+        className="np-left flex items-center gap-3"
+        onClick={() => currentTrack && setExpandedPlayer(true)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') currentTrack && setExpandedPlayer(true);
+        }}
+        style={{ cursor: currentTrack ? 'pointer' : 'default' }}
+      >
         <AlbumArt track={currentTrack} isPlaying={isPlaying} />
 
         {currentTrack ? (
@@ -164,8 +185,8 @@ export default function NowPlayingBar() {
           <button
             id="prev-btn"
             className="btn-icon tooltip"
-            data-tip="Previous (P)"
-            onClick={playPrev}
+            data-tip={queue.length > 1 ? 'Previous (P)' : 'Back 10s'}
+            onClick={() => (queue.length > 1 ? playPrev() : seekBy(-10))}
             style={{ fontSize: '1.1rem' }}
           >
             ⏮
@@ -184,8 +205,8 @@ export default function NowPlayingBar() {
           <button
             id="next-btn"
             className="btn-icon tooltip"
-            data-tip="Next (N)"
-            onClick={playNext}
+            data-tip={queue.length > 1 ? 'Next (N)' : 'Forward 10s'}
+            onClick={() => (queue.length > 1 ? playNext() : seekBy(10))}
             style={{ fontSize: '1.1rem' }}
           >
             ⏭

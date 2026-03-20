@@ -22,6 +22,13 @@ export default function ExpandedPlayer() {
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const liked = currentTrack ? isLiked(currentTrack.videoId) : false;
+  const canSeek = Boolean(currentTrack) && Number.isFinite(duration) && duration > 0;
+
+  function seekBy(deltaSec) {
+    if (!canSeek) return;
+    const next = Math.max(0, Math.min(duration, (currentTime || 0) + deltaSec));
+    seekTo(next);
+  }
 
   function cycleRepeat() {
     setRepeat(prev => prev === 'none' ? 'all' : prev === 'all' ? 'one' : 'none');
@@ -127,6 +134,7 @@ export default function ExpandedPlayer() {
         {/* Controls */}
         <div className="flex items-center gap-4">
           <button className={`btn-icon ${shuffle ? 'active' : ''}`} onClick={() => setShuffle(v => !v)} style={{ fontSize: '1.1rem', color: shuffle ? 'var(--plasma)' : undefined }}>🔀</button>
+          <button className="btn-icon" onClick={() => seekBy(-10)} style={{ fontSize: '1.1rem' }}>↺10</button>
           <button className="btn-icon" onClick={playPrev} style={{ fontSize: '1.3rem' }}>⏮</button>
 
           <button className="play-btn" onClick={togglePlay} style={{ width: 64, height: 64, fontSize: '1.5rem' }}>
@@ -134,6 +142,7 @@ export default function ExpandedPlayer() {
           </button>
 
           <button className="btn-icon" onClick={playNext} style={{ fontSize: '1.3rem' }}>⏭</button>
+          <button className="btn-icon" onClick={() => seekBy(10)} style={{ fontSize: '1.1rem' }}>10↻</button>
           <button className={`btn-icon ${repeat !== 'none' ? 'active' : ''}`} onClick={cycleRepeat} style={{ fontSize: '1.1rem', color: repeat !== 'none' ? 'var(--plasma)' : undefined }}>
             {repeat === 'one' ? '🔂' : '🔁'}
           </button>
