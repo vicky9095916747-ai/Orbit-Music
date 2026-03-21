@@ -710,7 +710,16 @@ export function PlayerProvider({ children }) {
       if (!res.ok) throw new Error('JioSaavn API Error');
       const data = await res.json();
       
-      const tracks = (data || []).filter(s => s.type !== "playlist").map(song => {
+      let items = [];
+      if (Array.isArray(data)) {
+        items = data;
+      } else if (data && typeof data === 'object' && Array.isArray(data.results)) {
+        items = data.results;
+      } else {
+        items = [];
+      }
+      
+      const tracks = items.filter(s => s.type !== "playlist").map(song => {
         // Handle HTML entities in JioSaavn titles, etc. (basic decode)
         const decode = (str) => {
           let txt = document.createElement("textarea");
@@ -719,11 +728,11 @@ export function PlayerProvider({ children }) {
         };
 
         return {
-          id: song.id,
+          id: 'jiosaavn_' + song.id,
           videoId: song.id, // For compatibility
-          title: decode(song.song),
+          title: decode(song.song || song.title || 'Unknown Title'),
           artist: decode(song.primary_artists || song.singers || 'Unknown'),
-          thumbnail: song.image,
+          thumbnail: song.image ? song.image.replace('150x150', '500x500') : '',
           duration: song.duration,
           media_url: song.media_url,
           source: 'jiosaavn',
@@ -733,8 +742,8 @@ export function PlayerProvider({ children }) {
 
       setSearchResults(tracks);
     } catch (err) {
-      console.error(err);
-      setSearchError(err.message || 'JioSaavn search failed. API may be unreachable.');
+      console.error('JioSaavn search failed:', err);
+      setSearchError('JioSaavn search failed. API may be unreachable.');
     } finally {
       setSearching(false);
     }

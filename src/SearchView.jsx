@@ -37,7 +37,7 @@ export default function SearchView() {
   }, []);
 
   function handleSearchSubmit(e) {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!searchQuery.trim()) return;
     setActiveCat(null);
     if (searchSource === 'jiosaavn') {
@@ -53,15 +53,6 @@ export default function SearchView() {
       searchJiosaavn(preset.query);
     } else {
       searchYouTube(preset.query, preset.cat);
-    }
-  }
-
-  function handleSearchSubmit(e) {
-    e.preventDefault();
-    if (searchSource === 'jiosaavn') {
-      searchJiosaavn(searchQuery);
-    } else {
-      searchYouTube(searchQuery);
     }
   }
 
@@ -87,14 +78,26 @@ export default function SearchView() {
       <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
         <button 
           className={`btn ${searchSource === 'jiosaavn' ? 'btn-primary' : 'btn-ghost'}`} 
-          onClick={() => setSearchSource('jiosaavn')}
+          onClick={() => {
+            setSearchSource('jiosaavn');
+            if (searchQuery.trim()) {
+              setActiveCat(null);
+              searchJiosaavn(searchQuery);
+            }
+          }}
           style={{ fontSize: '0.8rem', flex: 1 }}
         >
           🎵 JioSaavn (HQ Audio)
         </button>
         <button 
           className={`btn ${searchSource === 'youtube' ? 'btn-primary' : 'btn-ghost'}`} 
-          onClick={() => setSearchSource('youtube')}
+          onClick={() => {
+            setSearchSource('youtube');
+            if (searchQuery.trim()) {
+              setActiveCat(null);
+              searchYouTube(searchQuery);
+            }
+          }}
           style={{ fontSize: '0.8rem', flex: 1 }}
         >
           ▶️ YouTube
