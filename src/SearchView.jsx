@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePlayer } from './PlayerContext';
+import { useAuth } from './AuthContext';
 import { TrackCard, SkeletonGrid } from './HomeView';
 
 const SEARCH_PRESETS = [
@@ -16,16 +17,18 @@ const SEARCH_PRESETS = [
 ];
 
 export default function SearchView() {
+  const { signOut } = useAuth();
   const {
     searchQuery, setSearchQuery,
     searchResults, searching, searchError,
-    searchYouTube,
+    searchYouTube, searchJiosaavn, // Add searchJiosaavn
     playTrack,
     addToQueue,
     setShowSettings,
   } = usePlayer();
 
   const [activeCat, setActiveCat] = useState(null);
+  const [searchSource, setSearchSource] = useState('jiosaavn'); // 'jiosaavn' or 'youtube'
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -33,16 +36,33 @@ export default function SearchView() {
     inputRef.current?.focus?.();
   }, []);
 
-  function handleSubmit(e) {
+  function handleSearchSubmit(e) {
     e.preventDefault();
     if (!searchQuery.trim()) return;
     setActiveCat(null);
-    searchYouTube(searchQuery);
+    if (searchSource === 'jiosaavn') {
+      searchJiosaavn(searchQuery);
+    } else {
+      searchYouTube(searchQuery);
+    }
   }
 
   function handleCategoryClick(preset) {
     setActiveCat(preset.label);
-    searchYouTube(preset.query, preset.cat);
+    if (searchSource === 'jiosaavn') {
+      searchJiosaavn(preset.query);
+    } else {
+      searchYouTube(preset.query, preset.cat);
+    }
+  }
+
+  function handleSearchSubmit(e) {
+    e.preventDefault();
+    if (searchSource === 'jiosaavn') {
+      searchJiosaavn(searchQuery);
+    } else {
+      searchYouTube(searchQuery);
+    }
   }
 
   function handlePlayAll() {
@@ -63,8 +83,26 @@ export default function SearchView() {
         </div>
       </div>
 
+      {/* Source Toggle */}
+      <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+        <button 
+          className={`btn ${searchSource === 'jiosaavn' ? 'btn-primary' : 'btn-ghost'}`} 
+          onClick={() => setSearchSource('jiosaavn')}
+          style={{ fontSize: '0.8rem', flex: 1 }}
+        >
+          🎵 JioSaavn (HQ Audio)
+        </button>
+        <button 
+          className={`btn ${searchSource === 'youtube' ? 'btn-primary' : 'btn-ghost'}`} 
+          onClick={() => setSearchSource('youtube')}
+          style={{ fontSize: '0.8rem', flex: 1 }}
+        >
+          ▶️ YouTube
+        </button>
+      </div>
+
       {/* Mobile search input (TopBar input is hidden on phones) */}
-      <form className="search-bar search-view-bar" onSubmit={handleSubmit} style={{ marginBottom: 18 }}>
+      <form className="search-bar search-view-bar" onSubmit={handleSearchSubmit} style={{ marginBottom: 18 }}>
         <span className="search-icon">🔍</span>
         <input
           ref={inputRef}
@@ -109,13 +147,25 @@ export default function SearchView() {
           <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', maxWidth: 300, lineHeight: 1.5 }}>
             {searchError}
           </div>
-          <button
-            className="btn btn-ghost"
-            onClick={() => setShowSettings(true)}
-            style={{ fontSize: '0.8rem' }}
-          >
-            Check API Key
-          </button>
+          
+          <div style={{ display: 'flex', gap: '10px', marginTop: '16px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              className="btn btn-ghost"
+              onClick={() => setShowSettings(true)}
+              style={{ fontSize: '0.8rem' }}
+            >
+              Check API Key
+            </button>
+            {searchError.includes('Token missing') && (
+              <button
+                className="btn btn-primary"
+                onClick={() => signOut()}
+                style={{ fontSize: '0.8rem', background: 'rgba(255,50,50,0.2)', color: '#ff6b8a', borderColor: 'rgba(255,50,50,0.4)' }}
+              >
+                Sign Out to Re-authenticate
+              </button>
+            )}
+          </div>
         </div>
       )}
 

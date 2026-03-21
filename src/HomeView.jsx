@@ -55,7 +55,7 @@ function TrackCard({ track, queue = [] }) {
           }}>▶</div>
         </div>
 
-        {/* Like button overlay */}
+      {/* Like button overlay */}
         <button
           className={`like-btn ${liked ? 'liked' : ''}`}
           style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(3,1,10,0.7)', borderRadius: '50%', padding: 4 }}
@@ -63,6 +63,16 @@ function TrackCard({ track, queue = [] }) {
         >
           {liked ? '💜' : '🤍'}
         </button>
+
+        {/* Source indicator */}
+        <div style={{
+          position: 'absolute', top: 6, left: 6,
+          background: track.source === 'jiosaavn' ? 'rgba(40, 180, 140, 0.8)' : 'rgba(255, 0, 0, 0.8)',
+          color: 'white', fontSize: '0.6rem', fontWeight: 'bold',
+          padding: '2px 6px', borderRadius: 4, backdropFilter: 'blur(4px)'
+        }}>
+          {track.source === 'jiosaavn' ? 'JioSaavn' : 'YouTube'}
+        </div>
       </div>
 
       <div className="track-info">

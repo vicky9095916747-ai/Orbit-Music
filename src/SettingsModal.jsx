@@ -13,6 +13,7 @@ export default function SettingsModal() {
 
   function handleSave() {
     localStorage.setItem('orbit_theme', theme);
+    document.body.className = `theme-${theme.toLowerCase()}`;
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }

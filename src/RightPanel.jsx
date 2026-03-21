@@ -106,15 +106,17 @@ export default function RightPanel() {
             </div>
 
             <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
-              <a
-                href={`https://www.youtube.com/watch?v=${currentTrack.videoId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-ghost"
-                style={{ fontSize: '0.72rem', padding: '5px 10px', flex: 1, textDecoration: 'none' }}
-              >
-                YT ↗
-              </a>
+              {currentTrack.source !== 'jiosaavn' && (
+                <a
+                  href={`https://www.youtube.com/watch?v=${currentTrack.videoId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-ghost"
+                  style={{ fontSize: '0.72rem', padding: '5px 10px', flex: 1, textDecoration: 'none' }}
+                >
+                  YT ↗
+                </a>
+              )}
             </div>
           </div>
         </div>

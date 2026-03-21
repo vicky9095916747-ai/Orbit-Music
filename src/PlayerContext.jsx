@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { Capacitor } from '@capacitor/core';
+import { BackgroundMode } from '@anuradev/capacitor-background-mode';
+import { supabase } from './supabaseClient';
 
 const PlayerContext = createContext(null);
 
@@ -9,8 +12,28 @@ export function PlayerProvider({ children }) {
     session?.provider_token ||
     (typeof window !== 'undefined' ? localStorage.getItem('orbit_provider_token') : null);
 
-  // ─── YouTube Player state ───────────────────────────────
-  const playerRef    = useRef(null);
+  // ─── Helper: Refresh token on 401/403 ───────────────────
+  const refreshToken = useCallback(async () => {
+    try {
+      const { data: { session: newSession }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.warn('Token refresh failed:', error.message);
+        return null;
+      }
+      if (newSession?.provider_token) {
+        localStorage.setItem('provider_token', newSession.provider_token);
+        return newSession.provider_token;
+      }
+      return null;
+    } catch (e) {
+      console.warn('Token refresh error:', e);
+      return null;
+    }
+  }, []);
+
+  // ─── Player Refs state ───────────────────────────────
+  const playerRef = useRef(null); // YT player
+  const audioRef = useRef(null);  // HTML5 Audio for JioSaavn
   const [playerReady, setPlayerReady] = useState(false);
   const [playerState, setPlayerState] = useState(-1); // YT.PlayerState
 
@@ -85,8 +108,43 @@ export function PlayerProvider({ children }) {
   useEffect(() => { localStorage.setItem('orbit_liked', JSON.stringify(likedSongs)); }, [likedSongs]);
   useEffect(() => { localStorage.setItem('orbit_volume', String(volume)); }, [volume]);
 
-  // ─── Bootstrap YouTube IFrame API ──────────────────────
+  // ─── Enable Background Mode on native platforms ────────
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      BackgroundMode.enable().catch(e => console.warn('BackgroundMode enable failed:', e));
+      BackgroundMode.setSettings({
+        title: 'Orbit Music',
+        text: 'Playing music in background',
+        icon: 'ic_launcher',
+        color: '00E676',
+        resume: true,
+        hidden: false,
+        silent: false,
+      }).catch(e => console.warn('BackgroundMode settings failed:', e));
+
+      // Disable battery optimizations dialog (optional)
+      BackgroundMode.disableBatteryOptimizations().catch(() => { });
+
+      // Keep WebView running in background
+      BackgroundMode.disableWebViewOptimizations().catch(() => { });
+    }
+  }, []);
+
+  // ─── Bootstrap YouTube API & HTML5 Audio ───────────────
+  useEffect(() => {
+    // Init HTML5 Audio for JioSaavn
+    audioRef.current = new Audio();
+    audioRef.current.volume = volume / 100;
+    audioRef.current.addEventListener('timeupdate', () => setCurrentTime(audioRef.current.currentTime));
+    audioRef.current.addEventListener('loadedmetadata', () => setDuration(audioRef.current.duration));
+    audioRef.current.addEventListener('ended', () => {
+      setIsPlaying(false);
+      handleEnd();
+    });
+    audioRef.current.addEventListener('play', () => setIsPlaying(true));
+    audioRef.current.addEventListener('pause', () => setIsPlaying(false));
+
+    // INIT YT Player
     if (window.YT) {
       initPlayer();
       return;
@@ -127,6 +185,43 @@ export function PlayerProvider({ children }) {
     playerRef.current = p;
   }
 
+  // ─── Media Session API (notification controls) ─────────
+  function updateMediaSession(track, playing) {
+    if (!('mediaSession' in navigator)) return;
+    if (!track) return;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title || 'Unknown',
+      artist: track.artist || 'Orbit Music',
+      album: 'Orbit Music',
+      artwork: track.thumbnail ? [
+        { src: track.thumbnail, sizes: '512x512', type: 'image/jpeg' },
+      ] : [],
+    });
+
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+
+    navigator.mediaSession.setActionHandler('play', () => {
+      togglePlay();
+    });
+    navigator.mediaSession.setActionHandler('pause', () => {
+      togglePlay();
+    });
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+      // Restart current track from notification
+      seekTo(0);
+      togglePlay();
+    });
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      if (playNextRef.current) playNextRef.current();
+    });
+    navigator.mediaSession.setActionHandler('seekto', (details) => {
+      if (details.seekTime != null) {
+        seekTo(details.seekTime);
+      }
+    });
+  }
+
   function handleYTStateChange(e) {
     const state = e.data;
     setPlayerState(state);
@@ -141,7 +236,7 @@ export function PlayerProvider({ children }) {
         const preferred = ['hd1080', 'hd720', 'large', 'medium'];
         const best = preferred.find(q => levels.includes(q)) || 'hd720';
         p.setPlaybackQuality(best);
-      } catch (_) {}
+      } catch (_) { }
     } else if (state === 2) {  // PAUSED
       setIsPlaying(false);
       stopProgressPoll();
@@ -179,6 +274,11 @@ export function PlayerProvider({ children }) {
     }
   }
 
+  // ─── Update Media Session when track or play state changes ──
+  useEffect(() => {
+    updateMediaSession(currentTrack, isPlaying);
+  }, [currentTrack, isPlaying]);
+
   // ─── Playback Controls ────────────────────────────────
 
   const loadTrack = useCallback((track, autoplay = true) => {
@@ -187,11 +287,29 @@ export function PlayerProvider({ children }) {
     setCurrentTime(0);
     setDuration(0);
 
-    if (playerReady && playerRef.current) {
-      if (autoplay) {
-        playerRef.current.loadVideoById({ videoId: track.videoId, suggestedQuality: 'hd1080' });
-      } else {
-        playerRef.current.cueVideoById({ videoId: track.videoId, suggestedQuality: 'hd1080' });
+    if (track.source === 'jiosaavn') {
+      // Pause YT
+      if (playerReady && playerRef.current?.pauseVideo) {
+        playerRef.current.pauseVideo();
+      }
+      if (audioRef.current) {
+        audioRef.current.src = track.media_url || track.url;
+        audioRef.current.load();
+        if (autoplay) {
+          audioRef.current.play().catch(e => console.warn('Audio play error:', e));
+        }
+      }
+    } else {
+      // YouTube
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      if (playerReady && playerRef.current) {
+        if (autoplay) {
+          playerRef.current.loadVideoById({ videoId: track.videoId, suggestedQuality: 'hd1080' });
+        } else {
+          playerRef.current.cueVideoById({ videoId: track.videoId, suggestedQuality: 'hd1080' });
+        }
       }
     }
 
@@ -221,12 +339,21 @@ export function PlayerProvider({ children }) {
   }, [loadTrack]);
 
   const togglePlay = useCallback(() => {
-    if (!playerRef.current || !playerReady) return;
-    if (isPlaying) {
-      playerRef.current.pauseVideo();
+    if (!currentTrack) return;
+    if (currentTrack.source === 'jiosaavn') {
+      if (!audioRef.current) return;
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
     } else {
-      if (!currentTrack) return;
-      playerRef.current.playVideo();
+      if (!playerRef.current || !playerReady) return;
+      if (isPlaying) {
+        playerRef.current.pauseVideo();
+      } else {
+        playerRef.current.playVideo();
+      }
     }
   }, [isPlaying, playerReady, currentTrack]);
 
@@ -267,22 +394,31 @@ export function PlayerProvider({ children }) {
 
   const seekTo = useCallback((time) => {
     setCurrentTime(time);
-    playerRef.current?.seekTo(time, true);
-  }, []);
+    if (currentTrack?.source === 'jiosaavn' && audioRef.current) {
+      audioRef.current.currentTime = time;
+    } else {
+      playerRef.current?.seekTo(time, true);
+    }
+  }, [currentTrack]);
 
   const changeVolume = useCallback((v) => {
     setVolume(v);
     setMuted(v === 0);
+    if (audioRef.current) {
+      audioRef.current.volume = v / 100;
+    }
     playerRef.current?.setVolume(v);
   }, []);
 
   const toggleMute = useCallback(() => {
     if (muted) {
       setMuted(false);
+      if (audioRef.current) audioRef.current.muted = false;
       playerRef.current?.unMute();
       playerRef.current?.setVolume(volume || 50);
     } else {
       setMuted(true);
+      if (audioRef.current) audioRef.current.muted = true;
       playerRef.current?.mute();
     }
   }, [muted, volume]);
@@ -388,13 +524,23 @@ export function PlayerProvider({ children }) {
   // ─── YouTube Playlists ────────────────────────────────
 
   const fetchYouTubePlaylists = useCallback(async () => {
-    const token = providerToken;
+    let token = providerToken || session?.provider_token || localStorage.getItem('provider_token');
     if (!token) return;
     setFetchingYtPlaylists(true);
     try {
-      const res = await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50', {
+      let res = await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50', {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
       });
+      // If token expired, try to refresh
+      if (!res.ok && (res.status === 401 || res.status === 403)) {
+        const newToken = await refreshToken();
+        if (newToken) {
+          token = newToken;
+          res = await fetch('https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50', {
+            headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+          });
+        }
+      }
       if (!res.ok) throw new Error('Failed to fetch playlists');
       const data = await res.json();
       const pls = (data.items || []).map(item => ({
@@ -411,14 +557,15 @@ export function PlayerProvider({ children }) {
     } finally {
       setFetchingYtPlaylists(false);
     }
-  }, [providerToken]);
+  }, [providerToken, session, refreshToken]);
 
   const fetchYouTubePlaylistTracks = useCallback(async (playlistId) => {
-    const token = providerToken;
+    let token = providerToken || session?.provider_token || localStorage.getItem('provider_token');
     if (!token) return [];
     try {
       let pageToken = '';
-      let allTracks = [];
+      let allTracks = '';
+      let res;
       do {
         const params = new URLSearchParams({
           part: 'snippet',
@@ -426,9 +573,19 @@ export function PlayerProvider({ children }) {
           maxResults: '50',
           ...(pageToken ? { pageToken } : {})
         });
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params}`, {
+        res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params}`, {
           headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
         });
+        // If token expired, try to refresh
+        if (!res.ok && (res.status === 401 || res.status === 403)) {
+          const newToken = await refreshToken();
+          if (newToken) {
+            token = newToken;
+            res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params}`, {
+              headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+            });
+          }
+        }
         if (!res.ok) break;
         const data = await res.json();
         const tracks = (data.items || [])
@@ -444,8 +601,8 @@ export function PlayerProvider({ children }) {
         allTracks = [...allTracks, ...tracks];
         pageToken = data.nextPageToken;
       } while (pageToken && allTracks.length < 200);
-      
-      setYtPlaylists(prev => prev.map(p => 
+
+      setYtPlaylists(prev => prev.map(p =>
         p.ytId === playlistId ? { ...p, tracks: allTracks } : p
       ));
       return allTracks;
@@ -453,14 +610,14 @@ export function PlayerProvider({ children }) {
       console.error(err);
       return [];
     }
-  }, [providerToken]);
+  }, [providerToken, session, refreshToken]);
 
   // ─── YouTube Search ───────────────────────────────────
 
   const searchYouTube = useCallback(async (query, categoryId = '10') => {
     if (!query.trim()) return;
     
-    const token = providerToken;
+    let token = providerToken || session?.provider_token || localStorage.getItem('provider_token');
     if (!token) {
       setSearchError('Sign in with Google to enable search. (Token missing)');
       setActiveView('search');
@@ -486,10 +643,36 @@ export function PlayerProvider({ children }) {
           Accept: 'application/json'
         }
       });
-      
+
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
-           throw new Error('Search session expired. Please sign out and sign back in with Google.');
+          // Try to refresh the token
+          const newToken = await refreshToken();
+          if (newToken) {
+            // Retry with new token
+            const retryRes = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`, {
+              headers: {
+                Authorization: `Bearer ${newToken}`,
+                Accept: 'application/json'
+              }
+            });
+            if (retryRes.ok) {
+              const data = await retryRes.json();
+              const tracks = (data.items || []).map(item => ({
+                id: item.id.videoId,
+                videoId: item.id.videoId,
+                title: item.snippet.title,
+                artist: item.snippet.channelTitle,
+                thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+                duration: '',
+                addedAt: Date.now()
+              }));
+              setSearchResults(tracks);
+              setSearching(false);
+              return;
+            }
+          }
+          throw new Error('Search session expired. Please sign out and sign back in with Google.');
         }
         const err = await res.json();
         throw new Error(err.error?.message || 'API error');
@@ -497,22 +680,65 @@ export function PlayerProvider({ children }) {
       const data = await res.json();
 
       const tracks = (data.items || []).map(item => ({
-        id:        item.id.videoId,
-        videoId:   item.id.videoId,
-        title:     item.snippet.title,
-        artist:    item.snippet.channelTitle,
+        id: item.id.videoId,
+        videoId: item.id.videoId,
+        title: item.snippet.title,
+        artist: item.snippet.channelTitle,
         thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
-        duration:  '',
-        addedAt:   Date.now()
+        duration: '',
+        addedAt: Date.now(),
+        source: 'youtube'
       }));
 
       setSearchResults(tracks);
     } catch (err) {
-      setSearchError(err.message || 'Search failed. Check your API key.');
+      setSearchError(err.message || 'Search failed. Try signing out and back in with Google.');
     } finally {
       setSearching(false);
     }
   }, [providerToken]);
+
+  const searchJiosaavn = useCallback(async (query) => {
+    if (!query.trim()) return;
+
+    setSearching(true);
+    setSearchError('');
+    setActiveView('search');
+
+    try {
+      const res = await fetch(`https://jiosaavn-api-rho-liart.vercel.app/song/?query=${encodeURIComponent(query)}&songdata=true`);
+      if (!res.ok) throw new Error('JioSaavn API Error');
+      const data = await res.json();
+      
+      const tracks = (data || []).filter(s => s.type !== "playlist").map(song => {
+        // Handle HTML entities in JioSaavn titles, etc. (basic decode)
+        const decode = (str) => {
+          let txt = document.createElement("textarea");
+          txt.innerHTML = str;
+          return txt.value;
+        };
+
+        return {
+          id: song.id,
+          videoId: song.id, // For compatibility
+          title: decode(song.song),
+          artist: decode(song.primary_artists || song.singers || 'Unknown'),
+          thumbnail: song.image,
+          duration: song.duration,
+          media_url: song.media_url,
+          source: 'jiosaavn',
+          addedAt: Date.now()
+        };
+      });
+
+      setSearchResults(tracks);
+    } catch (err) {
+      console.error(err);
+      setSearchError(err.message || 'JioSaavn search failed. API may be unreachable.');
+    } finally {
+      setSearching(false);
+    }
+  }, []);
 
   // ─── Keyboard shortcuts ───────────────────────────────
   useEffect(() => {
@@ -586,7 +812,7 @@ export function PlayerProvider({ children }) {
         toggleLike, isLiked,
         createPlaylist, deletePlaylist, addTrackToPlaylist, removeTrackFromPlaylist, saveAsLocalPlaylist,
         fetchYouTubePlaylists, fetchYouTubePlaylistTracks,
-        searchYouTube
+        searchYouTube, searchJiosaavn
       }}
     >
       {children}

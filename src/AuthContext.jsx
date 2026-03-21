@@ -38,6 +38,7 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
+    localStorage.removeItem('provider_token');
     await supabase.auth.signOut();
   }
 

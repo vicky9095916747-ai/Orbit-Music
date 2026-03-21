@@ -13,6 +13,7 @@ import LibraryView from './LibraryView';
 import SettingsModal from './SettingsModal';
 import ExpandedPlayer from './ExpandedPlayer';
 import LoginPage from './LoginPage';
+import MobileNav from './MobileNav';
 import { TrackCard } from './HomeView';
 import { App as CapApp } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
@@ -96,18 +97,21 @@ function AppShell() {
   const shellClass = [
     'app-shell',
     sidebarCollapsed ? 'sidebar-collapsed' : '',
-    !rightPanelOpen   ? 'right-hidden' : '',
+    !rightPanelOpen ? 'right-hidden' : '',
   ].filter(Boolean).join(' ');
 
   function renderView() {
     switch (activeView) {
-      case 'home':    return <HomeView />;
-      case 'search':  return <SearchView />;
+      case 'home': return <HomeView />;
+      case 'search': return <SearchView />;
       case 'library': return <LibraryView />;
-      case 'liked':   return <LikedSongsView />;
-      default:        return <HomeView />;
+      case 'liked': return <LikedSongsView />;
+      default: return <HomeView />;
     }
   }
+
+  // Check if mobile
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   return (
     <>
@@ -118,6 +122,7 @@ function AppShell() {
         <main className="main-content">{renderView()}</main>
         <RightPanel />
         <NowPlayingBar />
+        {isMobile && <MobileNav />}
       </div>
       {showSettings && <SettingsModal />}
       {expandedPlayer && <ExpandedPlayer />}
@@ -136,7 +141,7 @@ export default function App() {
         if (url.hostname === 'login-callback') {
           // Close the external browser
           if (Capacitor.isNativePlatform()) {
-            await Browser.close().catch(() => {});
+            await Browser.close().catch(() => { });
           }
 
           // Extract tokens from the URL hash fragment
@@ -147,6 +152,10 @@ export default function App() {
           const accessToken = hashParams.get('access_token');
           const refreshToken = hashParams.get('refresh_token');
           const providerToken = hashParams.get('provider_token') || hashParams.get('providerToken');
+
+          if (providerToken) {
+            localStorage.setItem('provider_token', providerToken);
+          }
 
           if (accessToken && refreshToken) {
             // Directly set the session — this is the reliable approach for Capacitor
@@ -168,6 +177,10 @@ export default function App() {
             const queryAccess = url.searchParams.get('access_token');
             const queryRefresh = url.searchParams.get('refresh_token');
             const queryProvider = url.searchParams.get('provider_token') || url.searchParams.get('providerToken');
+
+            if (queryProvider) {
+              localStorage.setItem('provider_token', queryProvider);
+            }
             if (queryAccess && queryRefresh) {
               await supabase.auth.setSession({
                 access_token: queryAccess,
@@ -189,7 +202,7 @@ export default function App() {
   }, []);
 
   if (loading) return <LoadingScreen />;
-  if (!user)   return <LoginPage />;
+  if (!user) return <LoginPage />;
 
   return (
     <PlayerProvider>
