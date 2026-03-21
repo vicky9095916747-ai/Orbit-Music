@@ -25,10 +25,13 @@ export default function SearchView() {
     playTrack,
     addToQueue,
     setShowSettings,
+    setActiveView, setActivePlaylist,
+    ytPlaylists, setYtPlaylists
   } = usePlayer();
 
   const [activeCat, setActiveCat] = useState(null);
   const [searchSource, setSearchSource] = useState('jiosaavn'); // 'jiosaavn' or 'youtube'
+  const [searchType, setSearchType] = useState('song'); // 'song' or 'playlist'
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -40,19 +43,23 @@ export default function SearchView() {
     if (e) e.preventDefault();
     if (!searchQuery.trim()) return;
     setActiveCat(null);
-    if (searchSource === 'jiosaavn') {
+    if (searchType === 'playlist') {
+      searchYouTube(searchQuery, null, 'playlist');
+    } else if (searchSource === 'jiosaavn') {
       searchJiosaavn(searchQuery);
     } else {
-      searchYouTube(searchQuery);
+      searchYouTube(searchQuery, null, 'video');
     }
   }
 
   function handleCategoryClick(preset) {
     setActiveCat(preset.label);
-    if (searchSource === 'jiosaavn') {
+    if (searchType === 'playlist') {
+      searchYouTube(preset.query, preset.cat, 'playlist');
+    } else if (searchSource === 'jiosaavn') {
       searchJiosaavn(preset.query);
     } else {
-      searchYouTube(preset.query, preset.cat);
+      searchYouTube(preset.query, preset.cat, 'video');
     }
   }
 
@@ -74,35 +81,71 @@ export default function SearchView() {
         </div>
       </div>
 
-      {/* Source Toggle */}
+      {/* Type Toggle */}
       <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
         <button 
-          className={`btn ${searchSource === 'jiosaavn' ? 'btn-primary' : 'btn-ghost'}`} 
+          className={`btn ${searchType === 'song' ? 'btn-primary' : 'btn-ghost'}`} 
           onClick={() => {
-            setSearchSource('jiosaavn');
+            setSearchType('song');
             if (searchQuery.trim()) {
               setActiveCat(null);
-              searchJiosaavn(searchQuery);
+              if (searchSource === 'jiosaavn') {
+                searchJiosaavn(searchQuery);
+              } else {
+                searchYouTube(searchQuery, null, 'video');
+              }
             }
           }}
           style={{ fontSize: '0.8rem', flex: 1 }}
         >
-          🎵 JioSaavn (HQ Audio)
+          🎵 Songs
         </button>
         <button 
-          className={`btn ${searchSource === 'youtube' ? 'btn-primary' : 'btn-ghost'}`} 
+          className={`btn ${searchType === 'playlist' ? 'btn-primary' : 'btn-ghost'}`} 
           onClick={() => {
-            setSearchSource('youtube');
+            setSearchType('playlist');
             if (searchQuery.trim()) {
               setActiveCat(null);
-              searchYouTube(searchQuery);
+              searchYouTube(searchQuery, null, 'playlist');
             }
           }}
           style={{ fontSize: '0.8rem', flex: 1 }}
         >
-          ▶️ YouTube
+          📂 Playlists
         </button>
       </div>
+
+      {/* Source Toggle (Only show if searching for songs) */}
+      {searchType === 'song' && (
+        <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+          <button 
+            className={`btn ${searchSource === 'jiosaavn' ? 'btn-tertiary' : 'btn-ghost'}`} 
+            onClick={() => {
+              setSearchSource('jiosaavn');
+              if (searchQuery.trim()) {
+                setActiveCat(null);
+                searchJiosaavn(searchQuery);
+              }
+            }}
+            style={{ fontSize: '0.75rem', padding: '6px 12px', borderRadius: 20 }}
+          >
+            JioSaavn
+          </button>
+          <button 
+            className={`btn ${searchSource === 'youtube' ? 'btn-tertiary' : 'btn-ghost'}`} 
+            onClick={() => {
+              setSearchSource('youtube');
+              if (searchQuery.trim()) {
+                setActiveCat(null);
+                searchYouTube(searchQuery, null, 'video');
+              }
+            }}
+            style={{ fontSize: '0.75rem', padding: '6px 12px', borderRadius: 20 }}
+          >
+            YouTube
+          </button>
+        </div>
+      )}
 
       {/* Mobile search input (TopBar input is hidden on phones) */}
       <form className="search-bar search-view-bar" onSubmit={handleSearchSubmit} style={{ marginBottom: 18 }}>
@@ -208,13 +251,45 @@ export default function SearchView() {
             <SkeletonGrid count={12} />
           ) : searchResults.length > 0 ? (
             <div className="grid-auto">
-              {searchResults.map(track => (
-                <TrackCard
-                  key={track.videoId}
-                  track={track}
-                  queue={searchResults}
-                />
-              ))}
+              {searchResults.map(result => {
+                if (result.type === 'playlist') {
+                  return (
+                    <div
+                      key={result.id}
+                      className="glass-card"
+                      style={{ padding: 16, cursor: 'pointer' }}
+                      onClick={() => {
+                        // Check if it already exists in ytPlaylists
+                        if (!ytPlaylists.find(p => p.id === result.id)) {
+                          setYtPlaylists(prev => [...prev, result]);
+                        }
+                        setActivePlaylist(result.id);
+                        setActiveView('library');
+                      }}
+                    >
+                      <div style={{
+                        width: '100%', aspectRatio: '1', borderRadius: 8, marginBottom: 12,
+                        background: `linear-gradient(135deg, var(--plasma-dim), var(--ion-dim))`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem'
+                      }}>
+                        {result.thumbnail
+                          ? <img src={result.thumbnail} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+                          : '▶️'}
+                      </div>
+                      <div className="font-display truncate" style={{ fontSize: '0.82rem', fontWeight: 700, marginBottom: 4 }}>{result.name}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>YouTube Playlist</div>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <TrackCard
+                    key={result.videoId}
+                    track={result}
+                    queue={searchResults}
+                  />
+                );
+              })}
             </div>
           ) : !searchError && (
             <div className="empty-state">

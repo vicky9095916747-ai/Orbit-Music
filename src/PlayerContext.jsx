@@ -614,7 +614,7 @@ export function PlayerProvider({ children }) {
 
   // ─── YouTube Search ───────────────────────────────────
 
-  const searchYouTube = useCallback(async (query, categoryId = '10') => {
+  const searchYouTube = useCallback(async (query, categoryId = '10', type = 'video') => {
     if (!query.trim()) return;
     
     let token = providerToken || session?.provider_token || localStorage.getItem('provider_token');
@@ -631,10 +631,10 @@ export function PlayerProvider({ children }) {
     try {
       const params = new URLSearchParams({
         part: 'snippet',
-        type: 'video',
+        type: type,
         maxResults: '24',
         q: query,
-        ...(categoryId ? { videoCategoryId: categoryId } : {})
+        ...(categoryId && type === 'video' ? { videoCategoryId: categoryId } : {})
       });
 
       const res = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`, {
@@ -656,39 +656,64 @@ export function PlayerProvider({ children }) {
                 Accept: 'application/json'
               }
             });
-            if (retryRes.ok) {
-              const data = await retryRes.json();
-              const tracks = (data.items || []).map(item => ({
+            const data = await retryRes.json();
+            const tracks = (data.items || []).map(item => {
+              if (type === 'playlist') {
+                return {
+                  id: `yt-${item.id.playlistId}`,
+                  ytId: item.id.playlistId,
+                  name: item.snippet.title,
+                  thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+                  type: 'playlist',
+                  tracks: null,
+                  addedAt: Date.now()
+                };
+              }
+              return {
                 id: item.id.videoId,
                 videoId: item.id.videoId,
                 title: item.snippet.title,
                 artist: item.snippet.channelTitle,
                 thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
                 duration: '',
-                addedAt: Date.now()
-              }));
-              setSearchResults(tracks);
-              setSearching(false);
-              return;
-            }
+                addedAt: Date.now(),
+                source: 'youtube'
+              };
+            });
+            setSearchResults(tracks);
+            setSearching(false);
+            return;
           }
           throw new Error('Search session expired. Please sign out and sign back in with Google.');
         }
         const err = await res.json();
         throw new Error(err.error?.message || 'API error');
       }
-      const data = await res.json();
 
-      const tracks = (data.items || []).map(item => ({
-        id: item.id.videoId,
-        videoId: item.id.videoId,
-        title: item.snippet.title,
-        artist: item.snippet.channelTitle,
-        thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
-        duration: '',
-        addedAt: Date.now(),
-        source: 'youtube'
-      }));
+      const data = await res.json();
+      const tracks = (data.items || []).map(item => {
+        if (type === 'playlist') {
+          return {
+            id: `yt-${item.id.playlistId}`,
+            ytId: item.id.playlistId,
+            name: item.snippet.title,
+            thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+            type: 'playlist',
+            tracks: null,
+            addedAt: Date.now()
+          };
+        }
+        return {
+          id: item.id.videoId,
+          videoId: item.id.videoId,
+          title: item.snippet.title,
+          artist: item.snippet.channelTitle,
+          thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url,
+          duration: '',
+          addedAt: Date.now(),
+          source: 'youtube'
+        };
+      });
 
       setSearchResults(tracks);
     } catch (err) {
@@ -813,6 +838,7 @@ export function PlayerProvider({ children }) {
         setActiveView, setShowSettings, setSidebarCollapsed, setRightPanelOpen,
         setExpandedPlayer, setActivePlaylist,
         setSearchQuery, setSearchResults, setSearchError,
+        setYtPlaylists,
 
         // Actions
         loadTrack, playTrack, togglePlay, playNext, playPrev,
